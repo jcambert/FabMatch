@@ -29,6 +29,7 @@ public sealed class PostgreSqlIntegrationTests : IAsyncLifetime
             .CreateLogger();
 
         _postgres = new PostgreSqlBuilder()
+            .WithImage("postgres:16-alpine")
             .WithDatabase("fabmatch_test")
             .WithUsername("fabmatch")
             .WithPassword("test_password")

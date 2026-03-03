@@ -30,10 +30,28 @@ public sealed class NotificationRepository : Repository<Notification>, INotifica
     /// <inheritdoc />
     public async Task MarkAllAsReadAsync(Guid userId, CancellationToken ct = default)
     {
-        await Set
+        if (Db.Database.IsRelational())
+        {
+            await Set
+                .Where(n => n.UserId == userId && !n.IsRead)
+                .ExecuteUpdateAsync(s => s
+                    .SetProperty(n => n.IsRead, true)
+                    .SetProperty(n => n.ReadAt, DateTime.UtcNow), ct);
+            return;
+        }
+
+        var notifications = await Set
             .Where(n => n.UserId == userId && !n.IsRead)
-            .ExecuteUpdateAsync(s => s
-                .SetProperty(n => n.IsRead, true)
-                .SetProperty(n => n.ReadAt, DateTime.UtcNow), ct);
+            .ToListAsync(ct);
+
+        foreach (var notification in notifications)
+        {
+            notification.MarkAsRead();
+        }
+
+        if (notifications.Count > 0)
+        {
+            await Db.SaveChangesAsync(ct);
+        }
     }
 }

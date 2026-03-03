@@ -2,6 +2,7 @@ using FabMatch.Domain.Entities;
 using FabMatch.Infrastructure.Data;
 using FabMatch.Infrastructure.Data.Repositories;
 using FluentAssertions;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Serilog;
 using Testcontainers.PostgreSql;
@@ -59,6 +60,8 @@ public sealed class PostgreSqlIntegrationTests : IAsyncLifetime
     {
         // Arrange
         var userId = Guid.NewGuid();
+        await AddUserAsync(userId, "client-postgres@example.com");
+
         var client = Client.Create(userId, "PostgreSQL Corp", "Technology", "A real DB test");
         var repo = new ClientRepository(_db);
 
@@ -82,7 +85,10 @@ public sealed class PostgreSqlIntegrationTests : IAsyncLifetime
     public async Task Supplier_WithJsonLists_CanBePersistedAndRetrieved()
     {
         // Arrange
-        var supplier = Supplier.Create(Guid.NewGuid(), "Steel Masters", "Expert in steel", "Germany");
+        var userId = Guid.NewGuid();
+        await AddUserAsync(userId, "supplier-postgres@example.com");
+
+        var supplier = Supplier.Create(userId, "Steel Masters", "Expert in steel", "Germany");
         supplier.Update(
             "Steel Masters", "Expert in steel", "Germany",
             "https://steelmasters.de", 1990, "51-200",
@@ -102,5 +108,25 @@ public sealed class PostgreSqlIntegrationTests : IAsyncLifetime
         retrieved.Should().NotBeNull();
         retrieved!.Certifications.Should().Contain("ISO 9001");
         retrieved.Materials.Should().Contain("S235JR");
+    }
+
+    private async Task AddUserAsync(Guid userId, string email)
+    {
+        var user = new ApplicationUser
+        {
+            Id = userId,
+            UserName = email,
+            NormalizedUserName = email.ToUpperInvariant(),
+            Email = email,
+            NormalizedEmail = email.ToUpperInvariant(),
+            EmailConfirmed = true,
+            FirstName = "Test",
+            LastName = "User",
+            SecurityStamp = Guid.NewGuid().ToString("N"),
+            ConcurrencyStamp = Guid.NewGuid().ToString("N")
+        };
+
+        _db.Users.Add(user);
+        await _db.SaveChangesAsync();
     }
 }

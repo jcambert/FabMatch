@@ -1,0 +1,104 @@
+@page "/notifications"
+@attribute [Authorize]
+@using FabMatch.Application.Features.Notifications.Queries.GetNotifications
+@using FabMatch.Domain.Entities
+@using Microsoft.AspNetCore.Identity
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthState
+@inject NotificationStateService NotifState
+
+<PageTitle>Notifications – FabMatch</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Notifications</MudText>
+    @if (_notifications.Any(n => !n.IsRead))
+    {
+        <MudButton Variant="Variant.Outlined" OnClick="MarkAllReadAsync">
+            Mark all as read
+        </MudButton>
+    }
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_notifications.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">No notifications yet.</MudAlert>
+}
+else
+{
+    <MudList>
+        @foreach (var notif in _notifications)
+        {
+            <MudListItem Class="@(notif.IsRead ? "" : "notification-unread")">
+                <AvatarContent>
+                    <MudIcon Icon="@GetIcon(notif.Type)" Color="@GetColor(notif.Type)" />
+                </AvatarContent>
+                <ChildContent>
+                    <MudStack>
+                        <MudText Typo="Typo.body1">@notif.Title</MudText>
+                        <MudText Typo="Typo.body2">@notif.Message</MudText>
+                        <MudText Typo="Typo.caption">@notif.CreatedAt.ToLocalTime().ToString("f")</MudText>
+                        @if (!string.IsNullOrEmpty(notif.ActionUrl))
+                        {
+                            <MudLink Href="@notif.ActionUrl" Typo="Typo.caption">View Details</MudLink>
+                        }
+                    </MudStack>
+                </ChildContent>
+            </MudListItem>
+            <MudDivider />
+        }
+    </MudList>
+}
+
+@code {
+    private bool _loading = true;
+    private List<NotificationDto> _notifications = [];
+    private Guid _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user == null) return;
+
+        _userId = user.Id;
+        await LoadNotificationsAsync();
+        _loading = false;
+    }
+
+    private async Task LoadNotificationsAsync()
+    {
+        _notifications = (await Mediator.Send(new GetNotificationsQuery(_userId))).ToList();
+        var unreadCount = _notifications.Count(n => !n.IsRead);
+        NotifState.SetUnreadCount(unreadCount);
+    }
+
+    private async Task MarkAllReadAsync()
+    {
+        // TODO: implement mark-all-as-read command
+        await LoadNotificationsAsync();
+    }
+
+    private static string GetIcon(FabMatch.Domain.Enums.NotificationType type) => type switch
+    {
+        FabMatch.Domain.Enums.NotificationType.NewMatch => Icons.Material.Filled.Handshake,
+        FabMatch.Domain.Enums.NotificationType.MatchAccepted => Icons.Material.Filled.CheckCircle,
+        FabMatch.Domain.Enums.NotificationType.MatchRejected => Icons.Material.Filled.Cancel,
+        FabMatch.Domain.Enums.NotificationType.AnalysisComplete => Icons.Material.Filled.AutoAwesome,
+        FabMatch.Domain.Enums.NotificationType.PaymentProcessed => Icons.Material.Filled.Payment,
+        _ => Icons.Material.Filled.Notifications
+    };
+
+    private static Color GetColor(FabMatch.Domain.Enums.NotificationType type) => type switch
+    {
+        FabMatch.Domain.Enums.NotificationType.NewMatch => Color.Primary,
+        FabMatch.Domain.Enums.NotificationType.MatchAccepted => Color.Success,
+        FabMatch.Domain.Enums.NotificationType.MatchRejected => Color.Error,
+        FabMatch.Domain.Enums.NotificationType.AnalysisComplete => Color.Info,
+        _ => Color.Default
+    };
+}

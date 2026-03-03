@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FabMatch.Infrastructure</RootNamespace>
+    <AssemblyName>FabMatch.Infrastructure</AssemblyName>
+    <Description>FabMatch Infrastructure Layer - EF Core, repositories, external service implementations</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FabMatch.Domain\FabMatch.Domain.csproj" />
+    <ProjectReference Include="..\FabMatch.Application\FabMatch.Application.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Entity Framework Core + PostgreSQL -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.0" />
+
+    <!-- ASP.NET Core Identity + EF Core stores -->
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.0" />
+
+    <!-- OpenAI .NET SDK (official) -->
+    <PackageReference Include="OpenAI" Version="2.2.0" />
+
+    <!-- Stripe .NET SDK for payments -->
+    <PackageReference Include="Stripe.net" Version="47.3.0" />
+
+    <!-- PDF to image conversion -->
+    <PackageReference Include="PDFtoImage" Version="4.1.0" />
+
+    <!-- Serilog -->
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="9.0.0" />
+
+    <!-- Microsoft DI -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.0" />
+
+    <!-- SignalR (server-side) -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Core" Version="1.1.0" />
+  </ItemGroup>
+
+</Project>

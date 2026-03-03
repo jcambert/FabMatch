@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Target .NET 10 with C# 14 -->
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FabMatch.Domain</RootNamespace>
+    <AssemblyName>FabMatch.Domain</AssemblyName>
+    <Description>FabMatch Domain Layer - Core entities, interfaces, enums and value objects</Description>
+  </PropertyGroup>
+
+  <!-- No external dependencies: Domain should be pure -->
+
+</Project>

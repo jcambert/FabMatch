@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FabMatch.Web</RootNamespace>
+    <AssemblyName>FabMatch.Web</AssemblyName>
+    <Description>FabMatch Web Application - Blazor Server with MudBlazor UI and SignalR</Description>
+    <!-- Blazor Server render mode -->
+    <RenderMode>Server</RenderMode>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\FabMatch.Application\FabMatch.Application.csproj" />
+    <ProjectReference Include="..\FabMatch.Infrastructure\FabMatch.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- MudBlazor UI component library -->
+    <PackageReference Include="MudBlazor" Version="7.15.0" />
+
+    <!-- Serilog for ASP.NET Core -->
+    <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.PostgreSQL" Version="4.2.0" />
+    <PackageReference Include="Serilog.Enrichers.Environment" Version="3.0.0" />
+    <PackageReference Include="Serilog.Enrichers.Thread" Version="4.0.0" />
+    <PackageReference Include="Serilog.Enrichers.Process" Version="3.0.0" />
+
+    <!-- SignalR client -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.0" />
+
+    <!-- Entity Framework Core tools for migrations -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+</Project>

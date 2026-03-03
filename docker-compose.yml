@@ -1,0 +1,109 @@
+version: '3.9'
+
+services:
+
+  # ── Application ─────────────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fabmatch-app
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=db;Port=5432;Database=fabmatch;Username=fabmatch;Password=${DB_PASSWORD:-fabmatch_password}
+      - AI__Provider=${AI_PROVIDER:-OpenAI}
+      - AI__OpenAI__ApiKey=${OPENAI_API_KEY:-YOUR_KEY_HERE}
+      - AI__OpenAI__ChatModel=gpt-4o
+      - AI__OpenAI__EmbeddingModel=text-embedding-3-small
+      - Payment__Stripe__SecretKey=${STRIPE_SECRET_KEY:-YOUR_KEY_HERE}
+      - Payment__Stripe__PublishableKey=${STRIPE_PUBLISHABLE_KEY:-YOUR_KEY_HERE}
+      - Payment__Stripe__WebhookSecret=${STRIPE_WEBHOOK_SECRET:-YOUR_SECRET_HERE}
+      - FileStorage__BasePath=/app/uploads
+    volumes:
+      - app_uploads:/app/uploads
+      - app_logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - fabmatch-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: fabmatch-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: fabmatch
+      POSTGRES_USER: fabmatch
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-fabmatch_password}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - fabmatch-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fabmatch -d fabmatch"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # ── Nginx reverse proxy (optional, for production TLS termination) ──────────
+  nginx:
+    image: nginx:alpine
+    container_name: fabmatch-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./deploy/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      - app
+    networks:
+      - fabmatch-net
+    profiles:
+      - production
+
+  # ── pgAdmin (development tool, disabled in production) ──────────────────────
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: fabmatch-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@fabmatch.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+    networks:
+      - fabmatch-net
+    profiles:
+      - dev
+
+volumes:
+  postgres_data:
+    driver: local
+  app_uploads:
+    driver: local
+  app_logs:
+    driver: local
+
+networks:
+  fabmatch-net:
+    driver: bridge

@@ -1,0 +1,123 @@
+@page "/projects/{ProjectId:guid}/matches"
+@attribute [Authorize]
+@using FabMatch.Application.Features.Matches.Commands.UpdateMatchStatus
+@using FabMatch.Domain.Enums
+@using FabMatch.Domain.Interfaces
+@inject IMediator Mediator
+@inject IUnitOfWork Uow
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Project Matches – FabMatch</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-2">Match Proposals</MudText>
+<MudText Typo="Typo.body2" Class="mb-4">
+    Review AI-proposed supplier matches for this project. Accept or reject each proposal.
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_matches.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">
+        No match proposals yet. AI matching runs automatically when the project is published.
+    </MudAlert>
+}
+else
+{
+    <MudGrid>
+        @foreach (var match in _matches)
+        {
+            <MudItem xs="12" md="6">
+                <MudCard Elevation="2">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
+                                <MudText Typo="Typo.h6">@match.Supplier?.CompanyName</MudText>
+                                <MudChip Size="Size.Small" Color="@MatchStatusColor(match.Status)">
+                                    @match.Status
+                                </MudChip>
+                            </MudStack>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <!-- Affinity score gauge -->
+                        <MudText Typo="Typo.caption">AI Affinity Score</MudText>
+                        <MudProgressLinear Value="@((int)(match.AffinityScore * 100))"
+                                           Color="@ScoreColor(match.AffinityScore)"
+                                           Rounded="true" Size="Size.Large" Class="mb-1" />
+                        <MudText Typo="Typo.body2">@((match.AffinityScore * 100):F0)%</MudText>
+
+                        @if (!string.IsNullOrEmpty(match.MatchRationale))
+                        {
+                            <MudText Typo="Typo.body2" Class="mt-2 fst-italic">
+                                "@match.MatchRationale"
+                            </MudText>
+                        }
+                    </MudCardContent>
+                    <MudCardActions>
+                        @if (match.Status == MatchStatus.Proposed)
+                        {
+                            <MudButton Color="Color.Success" Variant="Variant.Filled" Size="Size.Small"
+                                       OnClick="() => UpdateStatusAsync(match.Id, MatchStatus.AcceptedByClient)">
+                                Accept
+                            </MudButton>
+                            <MudButton Color="Color.Error" Variant="Variant.Outlined" Size="Size.Small"
+                                       OnClick="() => UpdateStatusAsync(match.Id, MatchStatus.RejectedByClient)">
+                                Reject
+                            </MudButton>
+                        }
+                        <MudButton Href="@($"/suppliers/{match.SupplierId}")" Size="Size.Small">
+                            View Supplier
+                        </MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public Guid ProjectId { get; set; }
+
+    private bool _loading = true;
+    private List<FabMatch.Domain.Entities.Match> _matches = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _matches = (await Uow.Matches.GetByProjectIdAsync(ProjectId)).ToList();
+        _loading = false;
+    }
+
+    private async Task UpdateStatusAsync(Guid matchId, MatchStatus newStatus)
+    {
+        try
+        {
+            await Mediator.Send(new UpdateMatchStatusCommand(matchId, newStatus, Guid.Empty));
+            // Refresh
+            _matches = (await Uow.Matches.GetByProjectIdAsync(ProjectId)).ToList();
+            Snackbar.Add("Match status updated.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private static Color MatchStatusColor(MatchStatus status) => status switch
+    {
+        MatchStatus.AcceptedByClient or MatchStatus.AcceptedBySupplier => Color.Success,
+        MatchStatus.RejectedByClient or MatchStatus.RejectedBySupplier => Color.Error,
+        MatchStatus.Finalised => Color.Primary,
+        _ => Color.Default
+    };
+
+    private static Color ScoreColor(double score) => score switch
+    {
+        >= 0.8 => Color.Success,
+        >= 0.6 => Color.Warning,
+        _ => Color.Error
+    };
+}

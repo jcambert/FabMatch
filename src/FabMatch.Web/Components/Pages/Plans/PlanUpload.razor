@@ -1,0 +1,149 @@
+@page "/projects/{ProjectId:guid}/plans/upload"
+@attribute [Authorize(Roles = "Client")]
+@using FabMatch.Application.Features.Plans.Commands.UploadPlan
+@using FabMatch.Domain.Enums
+@inject IMediator Mediator
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Upload Plan – FabMatch</PageTitle>
+
+<MudText Typo="Typo.h5" Class="mb-4">Upload Technical Plan</MudText>
+
+<MudCard Elevation="2">
+    <MudCardContent>
+        <EditForm Model="_model" OnValidSubmit="HandleUploadAsync">
+            <DataAnnotationsValidator />
+
+            <!-- File drop zone -->
+            <MudFileUpload T="IBrowserFile" FilesChanged="OnFileSelected"
+                           Accept=".png,.jpg,.jpeg,.pdf"
+                           MaximumFileCount="1">
+                <ActivatorContent>
+                    <MudPaper Class="pa-8 d-flex align-center justify-center mud-border-dashed"
+                              Style="border: 2px dashed #1565C0; cursor: pointer; min-height: 150px;">
+                        <MudStack AlignItems="AlignItems.Center">
+                            <MudIcon Icon="@Icons.Material.Filled.CloudUpload"
+                                     Size="Size.Large" Color="Color.Primary" />
+                            <MudText>Drop your plan here or click to browse</MudText>
+                            <MudText Typo="Typo.caption">Supported: PNG, JPEG, PDF (max 20 MB)</MudText>
+                        </MudStack>
+                    </MudPaper>
+                </ActivatorContent>
+            </MudFileUpload>
+
+            @if (_selectedFile != null)
+            {
+                <MudAlert Severity="Severity.Info" Class="mt-2">
+                    Selected: <strong>@_selectedFile.Name</strong>
+                    (@(_selectedFile.Size / 1024.0 / 1024.0:F1) MB)
+                </MudAlert>
+            }
+
+            <MudGrid Class="mt-4">
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.Revision" Label="Revision (optional)"
+                                  HelperText="e.g. Rev A, v2.1" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudNumericField @bind-Value="_model.Quantity" Label="Quantity"
+                                     Min="1" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudNumericField @bind-Value="_model.DurationDays" Label="Duration (days)"
+                                     Min="1" HelperText="Required manufacturing days" />
+                </MudItem>
+            </MudGrid>
+
+            <MudTextField @bind-Value="_model.Notes" Label="Notes" Lines="2" Class="mt-3" />
+
+            <MudSwitch @bind-Value="_model.TriggerAnalysis"
+                       Label="Run AI analysis automatically"
+                       Color="Color.Primary" Class="mt-2" />
+
+            <MudStack Row="true" Spacing="2" Class="mt-4">
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="_loading || _selectedFile == null">
+                    @if (_loading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Upload Plan
+                </MudButton>
+                <MudButton Href="@($"/projects/{ProjectId}")" Variant="Variant.Outlined">Cancel</MudButton>
+            </MudStack>
+        </EditForm>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter] public Guid ProjectId { get; set; }
+
+    private IBrowserFile? _selectedFile;
+    private PlanModel _model = new();
+    private bool _loading;
+
+    private void OnFileSelected(IBrowserFile file) => _selectedFile = file;
+
+    private async Task HandleUploadAsync()
+    {
+        if (_selectedFile == null) return;
+
+        _loading = true;
+        try
+        {
+            // Read file bytes
+            const long maxSize = 20 * 1024 * 1024; // 20 MB
+            using var ms = new MemoryStream();
+            await using var stream = _selectedFile.OpenReadStream(maxSize);
+            await stream.CopyToAsync(ms);
+            var bytes = ms.ToArray();
+
+            // Determine format
+            var ext = Path.GetExtension(_selectedFile.Name).ToLowerInvariant();
+            var format = ext switch
+            {
+                ".pdf" => PlanFormat.Pdf,
+                ".jpg" or ".jpeg" => PlanFormat.Jpeg,
+                _ => PlanFormat.Png
+            };
+
+            var cmd = new UploadPlanCommand(
+                ProjectId,
+                _selectedFile.Name,
+                bytes,
+                format,
+                _model.Revision,
+                _model.DurationDays,
+                _model.Quantity,
+                _model.Notes,
+                _model.TriggerAnalysis);
+
+            var result = await Mediator.Send(cmd);
+
+            var msg = result.AnalysisQueued
+                ? "Plan uploaded! AI analysis has been queued."
+                : "Plan uploaded successfully.";
+            Snackbar.Add(msg, Severity.Success);
+            Nav.NavigateTo($"/projects/{ProjectId}");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Upload failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private sealed class PlanModel
+    {
+        public string? Revision { get; set; }
+        public int? Quantity { get; set; }
+        public int? DurationDays { get; set; }
+        public string? Notes { get; set; }
+        public bool TriggerAnalysis { get; set; } = true;
+    }
+}

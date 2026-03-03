@@ -1,0 +1,110 @@
+@page "/projects"
+@attribute [Authorize(Roles = "Client")]
+@using FabMatch.Application.Features.Projects.Queries.GetUserProjects
+@using FabMatch.Domain.Entities
+@using Microsoft.AspNetCore.Identity
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+
+<PageTitle>My Projects – FabMatch</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">My Projects</MudText>
+    <MudButton Href="/projects/create" Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add">New Project</MudButton>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_projects.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">
+        You don't have any projects yet.
+        <MudLink Href="/projects/create">Create your first project!</MudLink>
+    </MudAlert>
+}
+else
+{
+    <MudGrid>
+        @foreach (var project in _projects)
+        {
+            <MudItem xs="12" md="6" lg="4">
+                <MudCard Elevation="2" Class="h-100">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">@project.Title</MudText>
+                            <MudChip Size="Size.Small" Color="@StatusColor(project.Status)">@project.Status</MudChip>
+                        </CardHeaderContent>
+                        <CardHeaderActions>
+                            @if (project.IsPublic)
+                            {
+                                <MudTooltip Text="Public project">
+                                    <MudIcon Icon="@Icons.Material.Filled.Public" Color="Color.Success" />
+                                </MudTooltip>
+                            }
+                        </CardHeaderActions>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            @(project.Description.Length > 100
+                                ? project.Description[..100] + "…"
+                                : project.Description)
+                        </MudText>
+                        <MudStack Row="true" Spacing="2">
+                            <MudChip Size="Size.Small" Icon="@Icons.Material.Filled.Description">
+                                @project.PlanCount plan(s)
+                            </MudChip>
+                            <MudChip Size="Size.Small" Icon="@Icons.Material.Filled.Handshake">
+                                @project.MatchCount match(es)
+                            </MudChip>
+                        </MudStack>
+                        @if (project.DeliveryDate.HasValue)
+                        {
+                            <MudText Typo="Typo.caption" Class="mt-1">
+                                Delivery: @project.DeliveryDate.Value.ToString("dd/MM/yyyy")
+                            </MudText>
+                        }
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Href="@($"/projects/{project.Id}")" Size="Size.Small">View Details</MudButton>
+                        <MudButton Href="@($"/projects/{project.Id}/plans")" Size="Size.Small">Plans</MudButton>
+                        <MudButton Href="@($"/projects/{project.Id}/matches")" Size="Size.Small" Color="Color.Primary">
+                            Matches
+                        </MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private bool _loading = true;
+    private List<ProjectSummaryDto> _projects = [];
+    private Guid _clientId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user == null) return;
+
+        // TODO: fetch clientId from user profile
+        // For now use a placeholder
+        _loading = false;
+    }
+
+    private static Color StatusColor(FabMatch.Domain.Enums.ProjectStatus status) => status switch
+    {
+        FabMatch.Domain.Enums.ProjectStatus.Active => Color.Success,
+        FabMatch.Domain.Enums.ProjectStatus.InNegotiation => Color.Warning,
+        FabMatch.Domain.Enums.ProjectStatus.Awarded => Color.Primary,
+        FabMatch.Domain.Enums.ProjectStatus.Completed => Color.Dark,
+        FabMatch.Domain.Enums.ProjectStatus.Cancelled => Color.Error,
+        _ => Color.Default
+    };
+}

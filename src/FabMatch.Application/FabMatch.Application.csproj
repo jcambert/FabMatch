@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>14</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FabMatch.Application</RootNamespace>
+    <AssemblyName>FabMatch.Application</AssemblyName>
+    <Description>FabMatch Application Layer - CQRS commands, queries, handlers and application interfaces</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Domain project reference -->
+    <ProjectReference Include="..\FabMatch.Domain\FabMatch.Domain.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Mediator by Martin Othamar (source-generator based, zero-reflection) -->
+    <PackageReference Include="Mediator.SourceGenerator" Version="2.1.7">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Mediator.Abstractions" Version="2.1.7" />
+
+    <!-- FluentValidation for command/query validation -->
+    <PackageReference Include="FluentValidation" Version="11.11.0" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
+
+    <!-- Microsoft DI abstractions -->
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+
+    <!-- Logging abstractions -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+</Project>

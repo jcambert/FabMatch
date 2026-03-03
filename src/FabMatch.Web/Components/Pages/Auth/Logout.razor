@@ -1,0 +1,13 @@
+@page "/auth/logout"
+@using Microsoft.AspNetCore.Identity
+@using FabMatch.Domain.Entities
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Nav
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        await SignInManager.SignOutAsync();
+        Nav.NavigateTo("/auth/login", forceLoad: true);
+    }
+}

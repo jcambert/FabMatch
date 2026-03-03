@@ -1,0 +1,82 @@
+@inherits LayoutComponentBase
+@inject NotificationStateService NotifState
+@inject NavigationManager Nav
+
+<MudThemeProvider Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <!-- Top App Bar -->
+    <MudAppBar Elevation="1" Dense="false" Color="Color.Primary">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                       Color="Color.Inherit"
+                       Edge="Edge.Start"
+                       OnClick="ToggleDrawer" />
+        <MudText Typo="Typo.h6" Class="ml-3">FabMatch</MudText>
+        <MudSpacer />
+
+        <AuthorizeView>
+            <Authorized>
+                <!-- Notification badge -->
+                <MudBadge Content="@NotifState.UnreadCount"
+                          Color="Color.Error"
+                          Overlap="true"
+                          Visible="@(NotifState.UnreadCount > 0)">
+                    <MudIconButton Icon="@Icons.Material.Filled.Notifications"
+                                   Color="Color.Inherit"
+                                   Href="/notifications" />
+                </MudBadge>
+                <MudMenu AnchorOrigin="Origin.BottomRight">
+                    <ActivatorContent>
+                        <MudAvatar Color="Color.Secondary" Size="Size.Small" Class="ml-2" Style="cursor:pointer">
+                            @context.User.Identity!.Name?[..1].ToUpper()
+                        </MudAvatar>
+                    </ActivatorContent>
+                    <ChildContent>
+                        <MudMenuItem Href="/profile">Profile</MudMenuItem>
+                        <MudMenuItem Href="/settings">Settings</MudMenuItem>
+                        <MudDivider />
+                        <MudMenuItem Href="/auth/logout">Sign Out</MudMenuItem>
+                    </ChildContent>
+                </MudMenu>
+            </Authorized>
+            <NotAuthorized>
+                <MudButton Href="/auth/login" Variant="Variant.Text" Color="Color.Inherit">Sign In</MudButton>
+                <MudButton Href="/auth/register" Variant="Variant.Filled" Color="Color.Secondary" Class="ml-1">Register</MudButton>
+            </NotAuthorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    <!-- Navigation Drawer -->
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="2" Variant="DrawerVariant.Responsive">
+        <MudDrawerHeader>
+            <MudText Typo="Typo.h6">FabMatch</MudText>
+        </MudDrawerHeader>
+        <NavMenu />
+    </MudDrawer>
+
+    <!-- Main content -->
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#1565C0",
+            Secondary = "#F57C00",
+            Background = "#F5F5F5",
+            AppbarBackground = "#1565C0"
+        }
+    };
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+}

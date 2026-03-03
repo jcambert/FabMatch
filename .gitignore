@@ -1,0 +1,62 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.userprefs
+*.ncrunchproject
+*.DotSettings.user
+
+## Build output
+out/
+artifacts/
+publish/
+
+## Test results
+TestResults/
+coverage/
+*.trx
+*.xml
+
+## Secrets & config overrides (never commit these!)
+appsettings.*.Local.json
+.env
+.env.local
+secrets/
+# Allow .env.example as template
+!.env.example
+
+## Logs
+logs/
+*.log
+
+## Uploads
+uploads/
+
+## Docker volumes
+.docker/
+
+## Rider / VS Code
+.idea/
+.vscode/
+*.sln.iml
+
+## NuGet
+.nuget/
+*.nupkg
+*.snupkg
+packages/
+!packages/repositories.config
+
+## Certificates
+*.pfx
+*.pem
+*.crt
+*.key
+
+## macOS
+.DS_Store
+
+## Windows
+Thumbs.db

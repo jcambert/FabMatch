@@ -1,0 +1,109 @@
+@page "/auth/login"
+@using Microsoft.AspNetCore.Identity
+@using FabMatch.Domain.Entities
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Sign In – FabMatch</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-8">
+    <MudCard Elevation="4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h5" Align="Align.Center">Sign In to FabMatch</MudText>
+                <MudText Typo="Typo.body2" Align="Align.Center" Class="mt-1">
+                    The industrial matchmaking platform
+                </MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <EditForm Model="_model" OnValidSubmit="HandleLoginAsync">
+                <DataAnnotationsValidator />
+
+                <MudTextField @bind-Value="_model.Email"
+                              Label="Email Address"
+                              InputType="InputType.Email"
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Email"
+                              For="() => _model.Email"
+                              Class="mb-3" />
+
+                <MudTextField @bind-Value="_model.Password"
+                              Label="Password"
+                              InputType="@(_showPassword ? InputType.Text : InputType.Password)"
+                              Adornment="Adornment.End"
+                              AdornmentIcon="@(_showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
+                              OnAdornmentClick="() => _showPassword = !_showPassword"
+                              For="() => _model.Password"
+                              Class="mb-3" />
+
+                <MudCheckBox @bind-Value="_model.RememberMe" Label="Remember me" />
+
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           Class="mt-4"
+                           Disabled="_loading">
+                    @if (_loading)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                    }
+                    Sign In
+                </MudButton>
+            </EditForm>
+        </MudCardContent>
+        <MudCardActions Class="pa-4 d-flex flex-column">
+            <MudLink Href="/auth/register" Class="mb-2">Don't have an account? Register</MudLink>
+            <MudLink Href="/auth/forgot-password">Forgot your password?</MudLink>
+        </MudCardActions>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private LoginModel _model = new();
+    private bool _loading;
+    private bool _showPassword;
+
+    [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
+
+    private async Task HandleLoginAsync()
+    {
+        _loading = true;
+        try
+        {
+            var result = await SignInManager.PasswordSignInAsync(
+                _model.Email, _model.Password, _model.RememberMe, lockoutOnFailure: true);
+
+            if (result.Succeeded)
+            {
+                Nav.NavigateTo(ReturnUrl ?? "/dashboard", forceLoad: true);
+            }
+            else if (result.IsLockedOut)
+            {
+                Snackbar.Add("Account is locked. Try again later.", Severity.Error);
+            }
+            else
+            {
+                Snackbar.Add("Invalid email or password.", Severity.Error);
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private sealed class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; }
+    }
+}

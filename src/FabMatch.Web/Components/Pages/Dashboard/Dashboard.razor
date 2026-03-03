@@ -1,0 +1,180 @@
+@page "/dashboard"
+@attribute [Authorize]
+@using FabMatch.Application.Features.Projects.Queries.GetUserProjects
+@using FabMatch.Application.Features.Notifications.Queries.GetNotifications
+@using FabMatch.Domain.Entities
+@using Microsoft.AspNetCore.Identity
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>Dashboard – FabMatch</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Welcome back, @_userName</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-4" />
+}
+else
+{
+    <MudGrid>
+        <!-- Stats cards -->
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline">Active Projects</MudText>
+                    <MudText Typo="Typo.h3">@_activeProjects</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Href="/projects" Size="Size.Small">View All</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline">Pending Matches</MudText>
+                    <MudText Typo="Typo.h3">@_pendingMatches</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Href="/matches" Size="Size.Small">Review</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline">Unread Notifications</MudText>
+                    <MudText Typo="Typo.h3">@_unreadNotifications</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Href="/notifications" Size="Size.Small">View</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" sm="6" md="3">
+            <MudCard Elevation="2" Style="background: linear-gradient(135deg, #1565C0, #42A5F5); color: white;">
+                <MudCardContent>
+                    <MudText Typo="Typo.overline" Style="color:rgba(255,255,255,0.8)">Quick Action</MudText>
+                    <MudText Typo="Typo.h6" Style="color:white">Start a new project</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Href="/projects/create" Variant="Variant.Filled"
+                               Style="background:white; color:#1565C0">New Project</MudButton>
+                </MudCardActions>
+            </MudCard>
+        </MudItem>
+
+        <!-- Recent projects -->
+        <MudItem xs="12" md="7">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Recent Projects</MudText>
+                    </CardHeaderContent>
+                    <CardHeaderActions>
+                        <MudButton Href="/projects" Size="Size.Small">View All</MudButton>
+                    </CardHeaderActions>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_recentProjects.Count == 0)
+                    {
+                        <MudText Class="pa-4" Align="Align.Center">No projects yet.
+                            <MudLink Href="/projects/create">Create one now!</MudLink>
+                        </MudText>
+                    }
+                    else
+                    {
+                        <MudTable Items="_recentProjects" Dense="true" Hover="true" Elevation="0">
+                            <HeaderContent>
+                                <MudTh>Title</MudTh>
+                                <MudTh>Status</MudTh>
+                                <MudTh>Plans</MudTh>
+                                <MudTh>Matches</MudTh>
+                            </HeaderContent>
+                            <RowTemplate Context="proj">
+                                <MudTd>
+                                    <MudLink Href="@($"/projects/{proj.Id}")">@proj.Title</MudLink>
+                                </MudTd>
+                                <MudTd>
+                                    <MudChip Size="Size.Small"
+                                             Color="@StatusColor(proj.Status)">
+                                        @proj.Status
+                                    </MudChip>
+                                </MudTd>
+                                <MudTd>@proj.PlanCount</MudTd>
+                                <MudTd>@proj.MatchCount</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <!-- Recent notifications -->
+        <MudItem xs="12" md="5">
+            <MudCard Elevation="2">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">Recent Notifications</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    @if (_notifications.Count == 0)
+                    {
+                        <MudText Align="Align.Center" Class="pa-4">No notifications yet.</MudText>
+                    }
+                    else
+                    {
+                        @foreach (var notif in _notifications.Take(5))
+                        {
+                            <MudListItem Class="@(notif.IsRead ? "" : "mud-background-gray")">
+                                <AvatarContent>
+                                    <MudIcon Icon="@Icons.Material.Filled.Notifications"
+                                             Color="@(notif.IsRead ? Color.Default : Color.Primary)" />
+                                </AvatarContent>
+                                <ChildContent>
+                                    <MudText Typo="Typo.body2">@notif.Title</MudText>
+                                    <MudText Typo="Typo.caption">@notif.CreatedAt.ToLocalTime().ToString("g")</MudText>
+                                </ChildContent>
+                            </MudListItem>
+                        }
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private bool _loading = true;
+    private string _userName = "";
+    private int _activeProjects, _pendingMatches, _unreadNotifications;
+    private List<FabMatch.Application.Features.Projects.Queries.GetUserProjects.ProjectSummaryDto> _recentProjects = [];
+    private List<FabMatch.Application.Features.Notifications.Queries.GetNotifications.NotificationDto> _notifications = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var user = authState.User;
+        _userName = user.Identity?.Name ?? "User";
+
+        // TODO: resolve actual clientId from the user's claims or DB
+        // For now, placeholder empty data
+        _loading = false;
+    }
+
+    private static Color StatusColor(FabMatch.Domain.Enums.ProjectStatus status) => status switch
+    {
+        FabMatch.Domain.Enums.ProjectStatus.Active => Color.Success,
+        FabMatch.Domain.Enums.ProjectStatus.InNegotiation => Color.Warning,
+        FabMatch.Domain.Enums.ProjectStatus.Awarded => Color.Primary,
+        FabMatch.Domain.Enums.ProjectStatus.Completed => Color.Dark,
+        FabMatch.Domain.Enums.ProjectStatus.Cancelled => Color.Error,
+        _ => Color.Default
+    };
+}

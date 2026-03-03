@@ -1,0 +1,41 @@
+<MudNavMenu>
+    <AuthorizeView>
+        <Authorized>
+            <MudNavLink Href="/dashboard" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+
+            @* Client features *@
+            <AuthorizeView Roles="Client" Context="clientCtx">
+                <MudNavGroup Title="My Projects" Icon="@Icons.Material.Filled.Engineering" Expanded="true">
+                    <MudNavLink Href="/projects">All Projects</MudNavLink>
+                    <MudNavLink Href="/projects/create">New Project</MudNavLink>
+                </MudNavGroup>
+                <MudNavLink Href="/suppliers" Icon="@Icons.Material.Filled.Factory">Find Suppliers</MudNavLink>
+                <MudNavLink Href="/matches" Icon="@Icons.Material.Filled.Handshake">My Matches</MudNavLink>
+            </AuthorizeView>
+
+            @* Supplier features *@
+            <AuthorizeView Roles="Supplier" Context="supplierCtx">
+                <MudNavLink Href="/supplier/profile" Icon="@Icons.Material.Filled.Business">My Profile</MudNavLink>
+                <MudNavLink Href="/supplier/capabilities" Icon="@Icons.Material.Filled.Build">Production Capabilities</MudNavLink>
+                <MudNavLink Href="/supplier/matches" Icon="@Icons.Material.Filled.Handshake">Project Matches</MudNavLink>
+                <MudNavLink Href="/clients" Icon="@Icons.Material.Filled.People">Browse Clients</MudNavLink>
+            </AuthorizeView>
+
+            <MudNavLink Href="/notifications" Icon="@Icons.Material.Filled.Notifications">Notifications</MudNavLink>
+            <MudNavLink Href="/payments" Icon="@Icons.Material.Filled.Payment">Billing</MudNavLink>
+
+            @* Admin only *@
+            <AuthorizeView Roles="Admin" Context="adminCtx">
+                <MudNavGroup Title="Administration" Icon="@Icons.Material.Filled.AdminPanelSettings">
+                    <MudNavLink Href="/admin/users">Users</MudNavLink>
+                    <MudNavLink Href="/admin/matching">Run Matching</MudNavLink>
+                </MudNavGroup>
+            </AuthorizeView>
+        </Authorized>
+        <NotAuthorized>
+            <MudNavLink Href="/" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
+            <MudNavLink Href="/auth/login" Icon="@Icons.Material.Filled.Login">Sign In</MudNavLink>
+            <MudNavLink Href="/auth/register" Icon="@Icons.Material.Filled.PersonAdd">Register</MudNavLink>
+        </NotAuthorized>
+    </AuthorizeView>
+</MudNavMenu>

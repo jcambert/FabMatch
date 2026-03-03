@@ -1,0 +1,184 @@
+@page "/supplier/profile"
+@attribute [Authorize(Roles = "Supplier")]
+@using FabMatch.Application.Features.Suppliers.Commands.CreateSupplier
+@using FabMatch.Domain.Entities
+@using Microsoft.AspNetCore.Identity
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+<PageTitle>Supplier Profile – FabMatch</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">My Supplier Profile</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="8">
+        <MudCard Elevation="2">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Company Information</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <EditForm Model="_model" OnValidSubmit="HandleSaveAsync">
+                    <DataAnnotationsValidator />
+
+                    <MudTextField @bind-Value="_model.CompanyName" Label="Company Name *"
+                                  For="() => _model.CompanyName" Class="mb-3" />
+
+                    <MudTextField @bind-Value="_model.Presentation"
+                                  Label="Company Presentation *"
+                                  Lines="5"
+                                  HelperText="Describe your manufacturing expertise, specializations and strengths."
+                                  For="() => _model.Presentation" Class="mb-3" />
+
+                    <MudGrid>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.Country" Label="Country *"
+                                          For="() => _model.Country" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.WebsiteUrl" Label="Website URL" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudGrid Class="mt-3">
+                        <MudItem xs="12" sm="6">
+                            <MudNumericField @bind-Value="_model.FoundedYear"
+                                             Label="Founded Year" Min="1800" Max="2024" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_model.CompanySize"
+                                          Label="Company Size"
+                                          HelperText="e.g. 1-10, 11-50, 51-200, 200+" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudTextField @bind-Value="_certificationsInput"
+                                  Label="Certifications (comma-separated)"
+                                  HelperText="e.g. ISO 9001, EN 15085, IATF 16949"
+                                  Class="mt-3" />
+
+                    <MudTextField @bind-Value="_materialsInput"
+                                  Label="Materials Processed (comma-separated)"
+                                  HelperText="e.g. Steel S235, Aluminium 5754, Stainless 316L"
+                                  Class="mt-3" />
+
+                    <MudButton ButtonType="ButtonType.Submit"
+                               Variant="Variant.Filled" Color="Color.Primary"
+                               Class="mt-4" Disabled="_loading">
+                        @if (_loading)
+                        {
+                            <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        }
+                        Save Profile & Generate AI Embedding
+                    </MudButton>
+                </EditForm>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudCard Elevation="2">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Profile Completion</MudText>
+                </CardHeaderContent>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.body2" Class="mb-2">
+                    Complete your profile to improve your AI match score and visibility.
+                </MudText>
+                <MudProgressLinear Value="@_completionPercent" Color="Color.Primary" Rounded="true" Size="Size.Large" />
+                <MudText Typo="Typo.body2" Class="mt-1">@_completionPercent% complete</MudText>
+            </MudCardContent>
+        </MudCard>
+
+        <MudCard Elevation="2" Class="mt-3">
+            <MudCardHeader>
+                <CardHeaderContent>
+                    <MudText Typo="Typo.h6">Production Capabilities</MudText>
+                </CardHeaderContent>
+                <CardHeaderActions>
+                    <MudButton Href="/supplier/capabilities" Size="Size.Small">Manage</MudButton>
+                </CardHeaderActions>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.body2">
+                    Add your machines and manufacturing processes to improve matching accuracy.
+                </MudText>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private SupplierModel _model = new();
+    private string _certificationsInput = "";
+    private string _materialsInput = "";
+    private bool _loading;
+    private int _completionPercent = 40;
+    private Guid _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user != null) _userId = user.Id;
+    }
+
+    private async Task HandleSaveAsync()
+    {
+        _loading = true;
+        try
+        {
+            var certifications = _certificationsInput
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+            var materials = _materialsInput
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+
+            var cmd = new CreateSupplierCommand(
+                _userId,
+                _model.CompanyName,
+                _model.Presentation,
+                _model.Country,
+                _model.WebsiteUrl,
+                _model.FoundedYear,
+                _model.CompanySize,
+                certifications,
+                materials,
+                null);
+
+            await Mediator.Send(cmd);
+            Snackbar.Add("Profile saved! AI embedding generated.", Severity.Success);
+            _completionPercent = 80;
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private sealed class SupplierModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string CompanyName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Presentation { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Country { get; set; } = string.Empty;
+
+        public string? WebsiteUrl { get; set; }
+        public int? FoundedYear { get; set; }
+        public string? CompanySize { get; set; }
+    }
+}

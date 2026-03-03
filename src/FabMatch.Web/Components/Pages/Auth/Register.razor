@@ -1,0 +1,132 @@
+@page "/auth/register"
+@using FabMatch.Application.Features.Auth.Commands.RegisterUser
+@using Mediator
+@inject IMediator Mediator
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Register – FabMatch</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Small" Class="mt-6">
+    <MudCard Elevation="4">
+        <MudCardHeader>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h5" Align="Align.Center">Create Your Account</MudText>
+            </CardHeaderContent>
+        </MudCardHeader>
+        <MudCardContent>
+            <EditForm Model="_model" OnValidSubmit="HandleRegisterAsync">
+                <DataAnnotationsValidator />
+
+                <MudGrid>
+                    <MudItem xs="6">
+                        <MudTextField @bind-Value="_model.FirstName" Label="First Name"
+                                      For="() => _model.FirstName" />
+                    </MudItem>
+                    <MudItem xs="6">
+                        <MudTextField @bind-Value="_model.LastName" Label="Last Name"
+                                      For="() => _model.LastName" />
+                    </MudItem>
+                </MudGrid>
+
+                <MudTextField @bind-Value="_model.Email" Label="Email Address"
+                              InputType="InputType.Email"
+                              For="() => _model.Email" Class="mt-3" />
+
+                <MudTextField @bind-Value="_model.Password" Label="Password"
+                              InputType="InputType.Password"
+                              For="() => _model.Password" Class="mt-3" />
+
+                <MudTextField @bind-Value="_model.ConfirmPassword" Label="Confirm Password"
+                              InputType="InputType.Password"
+                              For="() => _model.ConfirmPassword" Class="mt-3" />
+
+                <MudTextField @bind-Value="_model.CompanyName" Label="Company Name"
+                              For="() => _model.CompanyName" Class="mt-3" />
+
+                <MudText Typo="Typo.subtitle1" Class="mt-4 mb-2">I am registering as:</MudText>
+
+                <MudStack Row="true" Spacing="2">
+                    <MudCheckBox @bind-Value="_model.RegisterAsClient" Label="Client (Buyer)" />
+                    <MudCheckBox @bind-Value="_model.RegisterAsSupplier" Label="Supplier (Manufacturer)" />
+                </MudStack>
+
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled"
+                           Color="Color.Primary"
+                           FullWidth="true"
+                           Class="mt-4"
+                           Disabled="_loading">
+                    @if (_loading) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+                    Create Account
+                </MudButton>
+            </EditForm>
+        </MudCardContent>
+        <MudCardActions Class="pa-4">
+            <MudLink Href="/auth/login">Already have an account? Sign in</MudLink>
+        </MudCardActions>
+    </MudCard>
+</MudContainer>
+
+@code {
+    private RegisterModel _model = new();
+    private bool _loading;
+
+    private async Task HandleRegisterAsync()
+    {
+        if (!_model.RegisterAsClient && !_model.RegisterAsSupplier)
+        {
+            Snackbar.Add("Please select at least one role: Client or Supplier.", Severity.Warning);
+            return;
+        }
+
+        _loading = true;
+        try
+        {
+            var cmd = new RegisterUserCommand(
+                _model.Email, _model.Password,
+                _model.FirstName, _model.LastName,
+                _model.RegisterAsClient, _model.RegisterAsSupplier,
+                _model.CompanyName);
+
+            var result = await Mediator.Send(cmd);
+            Snackbar.Add("Account created! Please sign in.", Severity.Success);
+            Nav.NavigateTo("/auth/login");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private sealed class RegisterModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public string FirstName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string LastName { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.EmailAddress]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MinLength(8)]
+        public string Password { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.Compare(nameof(Password), ErrorMessage = "Passwords do not match.")]
+        public string ConfirmPassword { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string CompanyName { get; set; } = string.Empty;
+
+        public bool RegisterAsClient { get; set; } = true;
+        public bool RegisterAsSupplier { get; set; }
+    }
+}

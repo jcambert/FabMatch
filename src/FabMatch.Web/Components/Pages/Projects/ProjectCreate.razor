@@ -1,0 +1,130 @@
+@page "/projects/create"
+@attribute [Authorize(Roles = "Client")]
+@using FabMatch.Application.Features.Projects.Commands.CreateProject
+@using FabMatch.Domain.Entities
+@using Microsoft.AspNetCore.Identity
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>New Project – FabMatch</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Create New Project</MudText>
+
+<MudCard Elevation="2" MaxWidth="MaxWidth.Medium">
+    <MudCardContent>
+        <EditForm Model="_model" OnValidSubmit="HandleSubmitAsync">
+            <DataAnnotationsValidator />
+
+            <MudTextField @bind-Value="_model.Title" Label="Project Title *"
+                          For="() => _model.Title" Class="mb-3" />
+
+            <MudTextField @bind-Value="_model.Description" Label="Description *"
+                          Lines="4" For="() => _model.Description" Class="mb-3" />
+
+            <MudGrid>
+                <MudItem xs="12" sm="6">
+                    <MudDatePicker @bind-Date="_model.DeliveryDate"
+                                   Label="Delivery Date"
+                                   Class="mb-3" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_model.BudgetEstimate" Label="Budget Estimate (€)"
+                                  InputType="InputType.Number" Class="mb-3" />
+                </MudItem>
+            </MudGrid>
+
+            <MudTextField @bind-Value="_processesInput"
+                          Label="Required Processes (comma-separated)"
+                          HelperText="e.g. Laser Cutting, Bending, Welding"
+                          Class="mb-3" />
+
+            <MudTextField @bind-Value="_materialsInput"
+                          Label="Materials (comma-separated)"
+                          HelperText="e.g. S235JR, Aluminium 5754"
+                          Class="mb-3" />
+
+            <MudSwitch @bind-Value="_model.IsPublic"
+                       Label="Make this project public (visible to all suppliers)"
+                       Color="Color.Primary" />
+
+            <MudStack Row="true" Spacing="2" Class="mt-4">
+                <MudButton ButtonType="ButtonType.Submit"
+                           Variant="Variant.Filled" Color="Color.Primary"
+                           Disabled="_loading">
+                    @if (_loading) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+                    Create Project
+                </MudButton>
+                <MudButton Href="/projects" Variant="Variant.Outlined">Cancel</MudButton>
+            </MudStack>
+        </EditForm>
+    </MudCardContent>
+</MudCard>
+
+@code {
+    private ProjectModel _model = new();
+    private string _processesInput = "";
+    private string _materialsInput = "";
+    private bool _loading;
+    private Guid _clientId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        // TODO: resolve client ID from user profile
+    }
+
+    private async Task HandleSubmitAsync()
+    {
+        _loading = true;
+        try
+        {
+            var processes = _processesInput
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+            var materials = _materialsInput
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+
+            var cmd = new CreateProjectCommand(
+                _clientId,
+                _model.Title,
+                _model.Description,
+                _model.IsPublic,
+                _model.DeliveryDate,
+                _model.BudgetEstimate,
+                "EUR",
+                processes,
+                materials);
+
+            var result = await Mediator.Send(cmd);
+            Snackbar.Add($"Project '{result.Title}' created!", Severity.Success);
+            Nav.NavigateTo($"/projects/{result.ProjectId}");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private sealed class ProjectModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        [System.ComponentModel.DataAnnotations.MaxLength(200)]
+        public string Title { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public string Description { get; set; } = string.Empty;
+
+        public DateTime? DeliveryDate { get; set; }
+        public decimal? BudgetEstimate { get; set; }
+        public bool IsPublic { get; set; }
+    }
+}

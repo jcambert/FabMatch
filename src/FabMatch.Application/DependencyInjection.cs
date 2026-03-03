@@ -15,11 +15,14 @@ public static class DependencyInjection
     {
         // ── Mediator (Martin Othamar – source-generator based) ─────────────────
         // Mediator.SourceGenerator generates the IMediator implementation at compile-time.
-        services.AddMediator();
+        services.AddMediator(options =>
+        {
+            options.ServiceLifetime = ServiceLifetime.Scoped;
+        });
 
         // ── Pipeline behaviors ─────────────────────────────────────────────────
         // Order matters: Logging → Validation → Handler
-        services.AddSingleton(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
+        services.AddScoped(typeof(IPipelineBehavior<,>), typeof(LoggingBehavior<,>));
         services.AddScoped(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 
         // ── FluentValidation ───────────────────────────────────────────────────

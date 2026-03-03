@@ -45,16 +45,62 @@ on:
     branches: [ "claude/saas-sheet-metal-matchmaking-RCWBa" ]
 
 jobs:
+
+  # ---------------------------
+  # 1) Tests d’intégration Linux
+  # ---------------------------
+  tests:
+    runs-on: ubuntu-latest
+
+    env:
+      Test_Project_Path: tests/FabMatch.Tests/FabMatch.Tests.csproj
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Install .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
+    - name: Start PostgreSQL container
+      run: |
+        docker run -d \
+          -p 5432:5432 \
+          -e POSTGRES_PASSWORD=postgres \
+          --name pg \
+          postgres:15.17-trixie
+
+    - name: Wait for PostgreSQL
+      run: |
+        for i in {1..20}; do
+          if pg_isready -h localhost -p 5432; then
+            echo "PostgreSQL is ready"
+            exit 0
+          fi
+          echo "Waiting for PostgreSQL..."
+          sleep 2
+        done
+        echo "PostgreSQL did not start in time"
+        exit 1
+
+    - name: Run integration tests
+      run: dotnet test ${{ env.Test_Project_Path }} --logger trx
+
+  # ---------------------------
+  # 2) Build Windows Desktop + MSIX
+  # ---------------------------
   build:
+    runs-on: windows-latest
+    needs: tests
+
     strategy:
       matrix:
         configuration: [Debug, Release]
 
-    runs-on: windows-latest
-
     env:
       Solution_Name: FabMatch.sln
-      Test_Project_Path: tests/FabMatch.Tests/FabMatch.Tests.csproj
       Wap_Project_Directory: src/FabMatch.Web
       Wap_Project_Path: src/FabMatch.Web/FabMatch.Web.csproj
 
@@ -64,49 +110,37 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Install .NET Core
+    - name: Install .NET
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 10.0.x
 
-    - name: Setup MSBuild.exe
+    - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
 
-    - name: Pull PostgreSQL image for integration tests
-      run: docker pull postgres:15.17-trixie
+    - name: Restore solution
+      run: msbuild $env:Solution_Name /t:Restore /p:Configuration=${{ matrix.configuration }}
 
-    - name: Execute unit tests
-      run: dotnet test
-
-    - name: Restore the application
-      run: msbuild $env:Solution_Name /t:Restore /p:Configuration=$env:Configuration
-      env:
-        Configuration: ${{ matrix.configuration }}
-
-    - name: Decode the pfx
+    - name: Decode signing certificate
       run: |
-        $pfx_cert_byte = [System.Convert]::FromBase64String("${{ secrets.Base64_Encoded_Pfx }}")
-        $certificatePath = Join-Path -Path $env:Wap_Project_Directory -ChildPath GitHubActionsWorkflow.pfx
-        [IO.File]::WriteAllBytes("$certificatePath", $pfx_cert_byte)
+        $bytes = [System.Convert]::FromBase64String("${{ secrets.Base64_Encoded_Pfx }}")
+        $path = Join-Path $env:Wap_Project_Directory "GitHubActionsWorkflow.pfx"
+        [IO.File]::WriteAllBytes($path, $bytes)
 
-    - name: Create the app package
+    - name: Build MSIX package
       run: msbuild $env:Wap_Project_Path `
-            /p:Configuration=$env:Configuration `
-            /p:UapAppxPackageBuildMode=$env:Appx_Package_Build_Mode `
-            /p:AppxBundle=$env:Appx_Bundle `
+            /p:Configuration=${{ matrix.configuration }} `
+            /p:UapAppxPackageBuildMode=StoreUpload `
+            /p:AppxBundle=Always `
             /p:PackageCertificateKeyFile=GitHubActionsWorkflow.pfx `
             /p:PackageCertificatePassword=${{ secrets.Pfx_Key }}
-      env:
-        Appx_Bundle: Always
-        Appx_Bundle_Platforms: x86|x64
-        Appx_Package_Build_Mode: StoreUpload
-        Configuration: ${{ matrix.configuration }}
 
-    - name: Remove the pfx
-      run: Remove-Item -path "$env:Wap_Project_Directory\GitHubActionsWorkflow.pfx"
+    - name: Remove certificate
+      run: Remove-Item "$env:Wap_Project_Directory\GitHubActionsWorkflow.pfx"
 
-    - name: Upload build artifacts
+    - name: Upload MSIX artifacts
       uses: actions/upload-artifact@v4
       with:
         name: MSIX Package
         path: ${{ env.Wap_Project_Directory }}\AppPackages
+

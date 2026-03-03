@@ -76,7 +76,7 @@ public sealed class OpenAIService : IAIService
         {
             // Strip markdown fences if present
             var json = raw.Trim();
-            if (json.StartsWith("```")) json = json[json.IndexOf('{')..json.LastIndexOf('}') + 1];
+            if (json.StartsWith("```")) json = json[json.IndexOf('{')..(json.LastIndexOf('}') + 1)];
 
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
@@ -118,9 +118,12 @@ public sealed class OpenAIService : IAIService
     {
         // For high-volume matching we use cosine similarity of embeddings (fast + cheap).
         // For detailed score+rationale, we also call GPT for the rationale text.
-        var (projEmb, suppEmb) = await (
-            GenerateEmbeddingAsync(projectDescription, ct),
-            GenerateEmbeddingAsync(supplierDescription, ct));
+        var projectEmbeddingTask = GenerateEmbeddingAsync(projectDescription, ct);
+        var supplierEmbeddingTask = GenerateEmbeddingAsync(supplierDescription, ct);
+        await Task.WhenAll(projectEmbeddingTask, supplierEmbeddingTask);
+
+        var projEmb = projectEmbeddingTask.Result;
+        var suppEmb = supplierEmbeddingTask.Result;
 
         var score = CosineSimilarity(projEmb, suppEmb);
 

@@ -101,7 +101,7 @@ else
                                     <MudLink Href="@($"/projects/{proj.Id}")">@proj.Title</MudLink>
                                 </MudTd>
                                 <MudTd>
-                                    <MudChip Size="Size.Small"
+                                    <MudChip T="string" Size="Size.Small"
                                              Color="@StatusColor(proj.Status)">
                                         @proj.Status
                                     </MudChip>
@@ -132,7 +132,7 @@ else
                     {
                         @foreach (var notif in _notifications.Take(5))
                         {
-                            <MudListItem Class="@(notif.IsRead ? "" : "mud-background-gray")">
+                            <MudListItem T="object" Class="@(notif.IsRead ? "" : "mud-background-gray")">
                                 <AvatarContent>
                                     <MudIcon Icon="@Icons.Material.Filled.Notifications"
                                              Color="@(notif.IsRead ? Color.Default : Color.Primary)" />
@@ -165,6 +165,9 @@ else
 
         // TODO: resolve actual clientId from the user's claims or DB
         // For now, placeholder empty data
+        _activeProjects = 0;
+        _pendingMatches = 0;
+        _unreadNotifications = 0;
         _loading = false;
     }
 

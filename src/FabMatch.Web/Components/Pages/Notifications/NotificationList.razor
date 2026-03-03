@@ -30,10 +30,10 @@ else if (_notifications.Count == 0)
 }
 else
 {
-    <MudList>
+    <MudList T="NotificationDto">
         @foreach (var notif in _notifications)
         {
-            <MudListItem Class="@(notif.IsRead ? "" : "notification-unread")">
+            <MudListItem T="NotificationDto" Value="notif" Class="@(notif.IsRead ? "" : "notification-unread")">
                 <AvatarContent>
                     <MudIcon Icon="@GetIcon(notif.Type)" Color="@GetColor(notif.Type)" />
                 </AvatarContent>

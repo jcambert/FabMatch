@@ -91,7 +91,7 @@ public sealed class RunMatchingHandlerTests
             .ReturnsAsync(false);
 
         _matchRepoMock
-            .Setup(r => r.AddAsync(It.IsAny<Match>(), It.IsAny<CancellationToken>()))
+            .Setup(r => r.AddAsync(It.IsAny<FabMatch.Domain.Entities.Match>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
         _notifRepoMock
@@ -109,7 +109,7 @@ public sealed class RunMatchingHandlerTests
 
         _hubMock
             .Setup(h => h.SendToUserAsync(
-                It.IsAny<Guid>(), It.IsAny<Domain.Enums.NotificationType>(),
+                It.IsAny<Guid>(), It.IsAny<FabMatch.Domain.Enums.NotificationType>(),
                 It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(),
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
@@ -129,7 +129,7 @@ public sealed class RunMatchingHandlerTests
         result.Matches[0].AffinityScore.Should().Be(0.85);
         result.Matches[0].SupplierName.Should().Be("Metal Works");
 
-        _matchRepoMock.Verify(r => r.AddAsync(It.IsAny<Match>(), It.IsAny<CancellationToken>()), Times.Once);
+        _matchRepoMock.Verify(r => r.AddAsync(It.IsAny<FabMatch.Domain.Entities.Match>(), It.IsAny<CancellationToken>()), Times.Once);
         _uowMock.Verify(u => u.SaveChangesAsync(It.IsAny<CancellationToken>()), Times.Once);
 
         _log.Information("Matching completed: {Count} matches created", result.MatchesCreated);

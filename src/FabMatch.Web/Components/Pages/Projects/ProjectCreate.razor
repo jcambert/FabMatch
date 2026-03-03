@@ -13,7 +13,7 @@
 
 <MudText Typo="Typo.h4" Class="mb-4">Create New Project</MudText>
 
-<MudCard Elevation="2" MaxWidth="MaxWidth.Medium">
+<MudCard Elevation="2">
     <MudCardContent>
         <EditForm Model="_model" OnValidSubmit="HandleSubmitAsync">
             <DataAnnotationsValidator />
@@ -68,7 +68,7 @@
     private string _processesInput = "";
     private string _materialsInput = "";
     private bool _loading;
-    private Guid _clientId;
+    private Guid _clientId = Guid.Empty;
 
     protected override async Task OnInitializedAsync()
     {

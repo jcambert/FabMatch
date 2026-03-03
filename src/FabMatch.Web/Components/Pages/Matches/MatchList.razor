@@ -36,7 +36,7 @@ else
                         <CardHeaderContent>
                             <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center">
                                 <MudText Typo="Typo.h6">@match.Supplier?.CompanyName</MudText>
-                                <MudChip Size="Size.Small" Color="@MatchStatusColor(match.Status)">
+                                <MudChip T="string" Size="Size.Small" Color="@MatchStatusColor(match.Status)">
                                     @match.Status
                                 </MudChip>
                             </MudStack>
@@ -48,7 +48,7 @@ else
                         <MudProgressLinear Value="@((int)(match.AffinityScore * 100))"
                                            Color="@ScoreColor(match.AffinityScore)"
                                            Rounded="true" Size="Size.Large" Class="mb-1" />
-                        <MudText Typo="Typo.body2">@((match.AffinityScore * 100):F0)%</MudText>
+                        <MudText Typo="Typo.body2">@($"{match.AffinityScore * 100:F0}%")</MudText>
 
                         @if (!string.IsNullOrEmpty(match.MatchRationale))
                         {

@@ -15,11 +15,7 @@ public static class DependencyInjection
     {
         // ── Mediator (Martin Othamar – source-generator based) ─────────────────
         // Mediator.SourceGenerator generates the IMediator implementation at compile-time.
-        services.AddMediator(opts =>
-        {
-            opts.Namespace = "FabMatch.Application";
-            opts.DefaultServiceLifetime = ServiceLifetime.Scoped;
-        });
+        services.AddMediator();
 
         // ── Pipeline behaviors ─────────────────────────────────────────────────
         // Order matters: Logging → Validation → Handler

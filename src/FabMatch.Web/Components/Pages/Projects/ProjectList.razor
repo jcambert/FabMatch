@@ -37,7 +37,7 @@ else
                     <MudCardHeader>
                         <CardHeaderContent>
                             <MudText Typo="Typo.h6">@project.Title</MudText>
-                            <MudChip Size="Size.Small" Color="@StatusColor(project.Status)">@project.Status</MudChip>
+                            <MudChip T="string" Size="Size.Small" Color="@StatusColor(project.Status)">@project.Status</MudChip>
                         </CardHeaderContent>
                         <CardHeaderActions>
                             @if (project.IsPublic)
@@ -55,10 +55,10 @@ else
                                 : project.Description)
                         </MudText>
                         <MudStack Row="true" Spacing="2">
-                            <MudChip Size="Size.Small" Icon="@Icons.Material.Filled.Description">
+                            <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Description">
                                 @project.PlanCount plan(s)
                             </MudChip>
-                            <MudChip Size="Size.Small" Icon="@Icons.Material.Filled.Handshake">
+                            <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Handshake">
                                 @project.MatchCount match(es)
                             </MudChip>
                         </MudStack>
@@ -85,8 +85,6 @@ else
 @code {
     private bool _loading = true;
     private List<ProjectSummaryDto> _projects = [];
-    private Guid _clientId;
-
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthState.GetAuthenticationStateAsync();

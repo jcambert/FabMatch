@@ -1,6 +1,7 @@
 using FabMatch.Application.Common.Interfaces;
 using Microsoft.Extensions.Logging;
 using PDFtoImage;
+using System.Runtime.Versioning;
 
 namespace FabMatch.Infrastructure.Services;
 
@@ -16,21 +17,35 @@ public sealed class PdfConverterService : IPdfConverterService
         => _logger = logger;
 
     /// <inheritdoc />
+    [SupportedOSPlatform("windows")]
+    [SupportedOSPlatform("linux")]
+    [SupportedOSPlatform("macos")]
+    [SupportedOSPlatform("android31.0")]
     public async Task<IReadOnlyList<byte[]>> ConvertToPngAsync(
         byte[] pdfBytes,
         int dpi = 150,
         CancellationToken ct = default)
     {
+        if (!OperatingSystem.IsWindows()
+            && !OperatingSystem.IsLinux()
+            && !OperatingSystem.IsMacOS()
+            && !OperatingSystem.IsAndroid())
+        {
+            throw new PlatformNotSupportedException("PDF conversion is supported on Windows, Linux, macOS, and Android only.");
+        }
+
         _logger.LogDebug("Converting PDF ({Bytes} bytes) to PNG at {Dpi} dpi", pdfBytes.Length, dpi);
 
         // PDFtoImage is a synchronous library; wrap in Task.Run to avoid blocking
         return await Task.Run(() =>
         {
-            using var ms = new MemoryStream(pdfBytes);
             var pages = new List<byte[]>();
 
             // Render all pages as PNG using PDFtoImage
-            var bitmaps = Conversion.ToImages(ms, dpi: dpi);
+            var bitmaps = Conversion.ToImages(pdfBytes, null, new RenderOptions
+            {
+                Dpi = dpi
+            });
             foreach (var bitmap in bitmaps)
             {
                 using var outStream = new MemoryStream();

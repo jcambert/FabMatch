@@ -85,7 +85,7 @@ public sealed class RepositoryTests : IDisposable
 
         for (var i = 0; i < 3; i++)
         {
-            var notif = Notification.Create(userId, Domain.Enums.NotificationType.NewMatch,
+            var notif = Notification.Create(userId, FabMatch.Domain.Enums.NotificationType.NewMatch,
                 $"Title {i}", $"Message {i}");
             await repo.AddAsync(notif);
         }

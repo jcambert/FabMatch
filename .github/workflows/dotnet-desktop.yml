@@ -78,7 +78,7 @@ jobs:
       uses: microsoft/setup-msbuild@v2
 
     - name: Pull PostgreSQL image for integration tests
-      run: docker pull postgres:16-alpine
+      run: docker pull postgres:15.17-trixie
 
     # Execute all unit tests in the solution
     - name: Execute unit tests

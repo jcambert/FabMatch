@@ -4,6 +4,7 @@ using FabMatch.Infrastructure;
 using FabMatch.Infrastructure.Data;
 using FabMatch.Infrastructure.Services;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MudBlazor.Services;
 using Serilog;
@@ -97,6 +98,37 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
+// ── Auth endpoints (must run on HTTP request pipeline, not Blazor circuit) ───
+app.MapPost("/auth/login/execute", async (
+    [FromForm] string email,
+    [FromForm] string password,
+    [FromForm] bool rememberMe,
+    [FromForm] string? returnUrl,
+    SignInManager<ApplicationUser> signInManager) =>
+{
+    var result = await signInManager.PasswordSignInAsync(
+        email, password, rememberMe, lockoutOnFailure: true);
+
+    if (result.Succeeded)
+    {
+        var safeReturnUrl = IsSafeLocalReturnUrl(returnUrl) ? returnUrl! : "/dashboard";
+        return Results.LocalRedirect(safeReturnUrl);
+    }
+
+    if (result.IsLockedOut)
+    {
+        return Results.LocalRedirect($"/auth/login?error=locked&returnUrl={Uri.EscapeDataString(returnUrl ?? string.Empty)}");
+    }
+
+    return Results.LocalRedirect($"/auth/login?error=invalid&returnUrl={Uri.EscapeDataString(returnUrl ?? string.Empty)}");
+}).DisableAntiforgery();
+
+app.MapGet("/auth/logout/execute", async (SignInManager<ApplicationUser> signInManager) =>
+{
+    await signInManager.SignOutAsync();
+    return Results.LocalRedirect("/auth/login");
+});
+
 // ── Blazor & SignalR endpoints ────────────────────────────────────────────────
 app.MapRazorComponents<FabMatch.Web.App>()
     .AddInteractiveServerRenderMode();
@@ -164,6 +196,16 @@ static async Task ApplyTrgmIndexesAsync(
         // Non-fatal: trgm indexes are a performance optimisation, not a correctness requirement.
         logger.LogWarning(ex, "Could not apply pg_trgm indexes (non-fatal).");
     }
+}
+
+static bool IsSafeLocalReturnUrl(string? returnUrl)
+{
+    if (string.IsNullOrWhiteSpace(returnUrl))
+        return false;
+
+    return returnUrl.StartsWith('/')
+           && !returnUrl.StartsWith("//")
+           && !returnUrl.StartsWith("/\\");
 }
 
 // Required for test discovery

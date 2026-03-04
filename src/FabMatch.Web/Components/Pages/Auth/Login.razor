@@ -1,9 +1,4 @@
 @page "/auth/login"
-@using Microsoft.AspNetCore.Identity
-@using FabMatch.Domain.Entities
-@inject SignInManager<ApplicationUser> SignInManager
-@inject NavigationManager Nav
-@inject ISnackbar Snackbar
 
 <PageTitle>Sign In – FabMatch</PageTitle>
 
@@ -18,41 +13,46 @@
             </CardHeaderContent>
         </MudCardHeader>
         <MudCardContent>
-            <EditForm Model="_model" OnValidSubmit="HandleLoginAsync">
-                <DataAnnotationsValidator />
+            @if (Error == "invalid")
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">
+                    Invalid email or password.
+                </MudAlert>
+            }
+            else if (Error == "locked")
+            {
+                <MudAlert Severity="Severity.Error" Dense="true" Class="mb-3">
+                    Account is locked. Try again later.
+                </MudAlert>
+            }
 
-                <MudTextField @bind-Value="_model.Email"
-                              Label="Email Address"
-                              InputType="InputType.Email"
-                              Adornment="Adornment.Start"
-                              AdornmentIcon="@Icons.Material.Filled.Email"
-                              For="() => _model.Email"
-                              Class="mb-3" />
+            <form method="post" action="/auth/login/execute">
+                <input type="hidden" name="returnUrl" value="@ReturnUrl" />
 
-                <MudTextField @bind-Value="_model.Password"
-                              Label="Password"
-                              InputType="@(_showPassword ? InputType.Text : InputType.Password)"
-                              Adornment="Adornment.End"
-                              AdornmentIcon="@(_showPassword ? Icons.Material.Filled.VisibilityOff : Icons.Material.Filled.Visibility)"
-                              OnAdornmentClick="() => _showPassword = !_showPassword"
-                              For="() => _model.Password"
-                              Class="mb-3" />
+                <div class="mb-3">
+                    <label for="email" class="mud-typography mud-typography-body2">Email Address</label>
+                    <input id="email" name="email" type="email" value="@Email" required class="mud-input-slot mud-input-root mud-input-root-filled" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,.23);border-radius:4px;" />
+                </div>
 
-                <MudCheckBox @bind-Value="_model.RememberMe" Label="Remember me" />
+                <div class="mb-3">
+                    <label for="password" class="mud-typography mud-typography-body2">Password</label>
+                    <input id="password" name="password" type="password" required class="mud-input-slot mud-input-root mud-input-root-filled" style="width:100%;padding:10px 12px;border:1px solid rgba(0,0,0,.23);border-radius:4px;" />
+                </div>
+
+                <div class="mb-2">
+                    <input type="hidden" name="rememberMe" value="false" />
+                    <input id="rememberMe" name="rememberMe" type="checkbox" value="true" />
+                    <label for="rememberMe" class="mud-typography mud-typography-body2 ml-1">Remember me</label>
+                </div>
 
                 <MudButton ButtonType="ButtonType.Submit"
                            Variant="Variant.Filled"
                            Color="Color.Primary"
                            FullWidth="true"
-                           Class="mt-4"
-                           Disabled="_loading">
-                    @if (_loading)
-                    {
-                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                    }
+                           Class="mt-4">
                     Sign In
                 </MudButton>
-            </EditForm>
+            </form>
         </MudCardContent>
         <MudCardActions Class="pa-4 d-flex flex-column">
             <MudLink Href="/auth/register" Class="mb-2">Don't have an account? Register</MudLink>
@@ -62,48 +62,7 @@
 </MudContainer>
 
 @code {
-    private LoginModel _model = new();
-    private bool _loading;
-    private bool _showPassword;
-
     [SupplyParameterFromQuery] private string? ReturnUrl { get; set; }
-
-    private async Task HandleLoginAsync()
-    {
-        _loading = true;
-        try
-        {
-            var result = await SignInManager.PasswordSignInAsync(
-                _model.Email, _model.Password, _model.RememberMe, lockoutOnFailure: true);
-
-            if (result.Succeeded)
-            {
-                Nav.NavigateTo(ReturnUrl ?? "/dashboard", forceLoad: true);
-            }
-            else if (result.IsLockedOut)
-            {
-                Snackbar.Add("Account is locked. Try again later.", Severity.Error);
-            }
-            else
-            {
-                Snackbar.Add("Invalid email or password.", Severity.Error);
-            }
-        }
-        finally
-        {
-            _loading = false;
-        }
-    }
-
-    private sealed class LoginModel
-    {
-        [System.ComponentModel.DataAnnotations.Required]
-        [System.ComponentModel.DataAnnotations.EmailAddress]
-        public string Email { get; set; } = string.Empty;
-
-        [System.ComponentModel.DataAnnotations.Required]
-        public string Password { get; set; } = string.Empty;
-
-        public bool RememberMe { get; set; }
-    }
+    [SupplyParameterFromQuery] private string? Error { get; set; }
+    [SupplyParameterFromQuery] private string? Email { get; set; }
 }

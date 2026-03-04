@@ -1,13 +1,11 @@
 @page "/auth/logout"
-@using Microsoft.AspNetCore.Identity
-@using FabMatch.Domain.Entities
-@inject SignInManager<ApplicationUser> SignInManager
 @inject NavigationManager Nav
 
+<MudText Typo="Typo.body2" Class="pa-4">Signing out...</MudText>
+
 @code {
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        await SignInManager.SignOutAsync();
-        Nav.NavigateTo("/auth/login", forceLoad: true);
+        Nav.NavigateTo("/auth/logout/execute", forceLoad: true);
     }
 }

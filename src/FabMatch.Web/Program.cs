@@ -130,11 +130,39 @@ static async Task MigrateDatabaseAsync(WebApplication app)
         }
 
         logger.LogInformation("Database migration complete.");
+
+        // Ensure pg_trgm extension and GIN indexes for full-text search (idempotent)
+        await ApplyTrgmIndexesAsync(db, logger);
     }
     catch (Exception ex)
     {
         logger.LogError(ex, "Database migration failed.");
         throw;
+    }
+}
+
+static async Task ApplyTrgmIndexesAsync(
+    ApplicationDbContext db,
+    ILogger<Program> logger)
+{
+    try
+    {
+        await db.Database.ExecuteSqlRawAsync("CREATE EXTENSION IF NOT EXISTS pg_trgm;");
+
+        await db.Database.ExecuteSqlRawAsync(@"
+            CREATE INDEX IF NOT EXISTS ix_suppliers_company_trgm
+                ON ""Suppliers"" USING GIN (""CompanyName"" gin_trgm_ops);");
+
+        await db.Database.ExecuteSqlRawAsync(@"
+            CREATE INDEX IF NOT EXISTS ix_suppliers_presentation_trgm
+                ON ""Suppliers"" USING GIN (""Presentation"" gin_trgm_ops);");
+
+        logger.LogInformation("pg_trgm GIN indexes verified.");
+    }
+    catch (Exception ex)
+    {
+        // Non-fatal: trgm indexes are a performance optimisation, not a correctness requirement.
+        logger.LogWarning(ex, "Could not apply pg_trgm indexes (non-fatal).");
     }
 }
 

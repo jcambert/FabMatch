@@ -1,0 +1,237 @@
+@page "/payments"
+@page "/payments/subscription"
+@attribute [Authorize]
+@using FabMatch.Application.Features.Payments.Queries.GetSubscription
+@using FabMatch.Application.Features.Payments.Commands.CreateSubscription
+@using FabMatch.Application.Features.Payments.Commands.CancelSubscription
+@using FabMatch.Domain.Entities
+@using FabMatch.Domain.Enums
+@using Microsoft.AspNetCore.Identity
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+<PageTitle>Billing & Subscription – FabMatch</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Billing &amp; Subscription</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <!-- Current plan banner -->
+    <MudCard Elevation="2" Class="mb-6">
+        <MudCardContent>
+            <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                <MudIcon Icon="@Icons.Material.Filled.Stars" Color="Color.Warning" Size="Size.Large" />
+                <div>
+                    <MudText Typo="Typo.overline">Current plan</MudText>
+                    <MudText Typo="Typo.h5">@_subscription!.CurrentTier</MudText>
+                </div>
+                @if (_subscription.CurrentTier != SubscriptionTier.Free)
+                {
+                    <MudSpacer />
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error"
+                               OnClick="OpenCancelDialogAsync" Disabled="_working">
+                        Cancel Subscription
+                    </MudButton>
+                }
+            </MudStack>
+        </MudCardContent>
+    </MudCard>
+
+    <!-- Plan cards -->
+    <MudText Typo="Typo.h6" Class="mb-3">Available Plans</MudText>
+    <MudGrid>
+        @foreach (var plan in _plans)
+        {
+            <MudItem xs="12" sm="6" lg="3">
+                <MudCard Elevation="@(plan.Tier == _subscription.CurrentTier ? 4 : 2)"
+                         Class="@(plan.Tier == _subscription.CurrentTier ? "mud-border-primary" : "") h-100"
+                         Style="@(plan.Tier == _subscription.CurrentTier ? "border: 2px solid var(--mud-palette-primary);" : "")">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">@plan.Name</MudText>
+                            <MudText Typo="Typo.h4" Color="Color.Primary">
+                                @plan.Price<MudText Typo="Typo.caption" Inline="true">/mo</MudText>
+                            </MudText>
+                        </CardHeaderContent>
+                        @if (plan.Tier == _subscription.CurrentTier)
+                        {
+                            <CardHeaderActions>
+                                <MudChip Color="Color.Primary" Size="Size.Small">Current</MudChip>
+                            </CardHeaderActions>
+                        }
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudList Dense="true">
+                            @foreach (var feature in plan.Features)
+                            {
+                                <MudListItem Icon="@Icons.Material.Filled.Check"
+                                             IconColor="Color.Success"
+                                             Dense="true">
+                                    @feature
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudCardContent>
+                    <MudCardActions>
+                        @if (plan.Tier != _subscription.CurrentTier && plan.Tier != SubscriptionTier.Free)
+                        {
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                       FullWidth="true" Disabled="_working"
+                                       OnClick="() => SubscribeAsync(plan.Tier)">
+                                @if (_working && _pendingTier == plan.Tier)
+                                {
+                                    <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                                }
+                                Upgrade
+                            </MudButton>
+                        }
+                        else if (plan.Tier == SubscriptionTier.Free && _subscription.CurrentTier != SubscriptionTier.Free)
+                        {
+                            <MudText Typo="Typo.caption" Class="pa-2 mud-text-secondary">
+                                Downgrade by cancelling your plan.
+                            </MudText>
+                        }
+                        else if (plan.Tier == _subscription.CurrentTier)
+                        {
+                            <MudText Typo="Typo.caption" Class="pa-2 mud-text-secondary">
+                                ✓ Active
+                            </MudText>
+                        }
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+<!-- Cancel confirmation dialog -->
+<MudDialog @bind-IsVisible="_cancelDialogOpen" Options="_dialogOpts">
+    <TitleContent>
+        <MudText Typo="Typo.h6">Cancel Subscription</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudText>
+            Your subscription will be cancelled at the end of the current billing period.
+            You will be downgraded to the Free plan.
+        </MudText>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _cancelDialogOpen = false">Keep Plan</MudButton>
+        <MudButton Color="Color.Error" Variant="Variant.Filled"
+                   OnClick="ConfirmCancelAsync" Disabled="_working">
+            Yes, Cancel
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _loading = true;
+    private bool _working;
+    private bool _cancelDialogOpen;
+    private SubscriptionTier _pendingTier;
+    private SubscriptionInfoDto? _subscription;
+    private Guid _userId;
+    private string _userEmail = "";
+    private string _userName = "";
+
+    private readonly DialogOptions _dialogOpts = new() { MaxWidth = MaxWidth.Small, FullWidth = true };
+
+    private static readonly List<PlanInfo> _plans =
+    [
+        new(SubscriptionTier.Free, "Free", "€0",
+            ["Up to 3 projects", "5 AI analyses / month", "Basic search"]),
+        new(SubscriptionTier.Starter, "Starter", "€49",
+            ["Up to 15 projects", "50 AI analyses / month", "Priority matching", "Email support"]),
+        new(SubscriptionTier.Professional, "Professional", "€149",
+            ["Unlimited projects", "Unlimited AI analyses", "Advanced matching", "Dedicated support"]),
+        new(SubscriptionTier.Enterprise, "Enterprise", "Custom",
+            ["Everything in Pro", "Custom SLA", "White-labelling", "24/7 support"])
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user == null) return;
+
+        _userId = user.Id;
+        _userEmail = user.Email ?? "";
+        _userName = user.FullName;
+
+        _subscription = await Mediator.Send(new GetSubscriptionQuery(_userId));
+        _loading = false;
+    }
+
+    private async Task SubscribeAsync(SubscriptionTier tier)
+    {
+        _working = true;
+        _pendingTier = tier;
+        try
+        {
+            var result = await Mediator.Send(new CreateSubscriptionCommand(
+                _userId, _userEmail, _userName, tier));
+
+            Snackbar.Add(
+                $"Successfully subscribed to {tier} plan! Status: {result.Status}",
+                Severity.Success);
+
+            // Refresh subscription info
+            _subscription = await Mediator.Send(new GetSubscriptionQuery(_userId));
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("price ID"))
+        {
+            Snackbar.Add("Stripe price IDs are not configured. Please contact support.", Severity.Warning);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Subscription failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _working = false;
+            _pendingTier = default;
+        }
+    }
+
+    private Task OpenCancelDialogAsync()
+    {
+        _cancelDialogOpen = true;
+        return Task.CompletedTask;
+    }
+
+    private async Task ConfirmCancelAsync()
+    {
+        _working = true;
+        _cancelDialogOpen = false;
+        try
+        {
+            // In production, the SubscriptionId would be stored on the user record.
+            // Here we use the StripeCustomerId as a proxy for demonstration.
+            var subId = _subscription?.StripeCustomerId ?? "sub_placeholder";
+            await Mediator.Send(new CancelSubscriptionCommand(_userId, subId));
+
+            Snackbar.Add("Subscription cancelled. You'll retain access until period end.", Severity.Info);
+            _subscription = await Mediator.Send(new GetSubscriptionQuery(_userId));
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Cancellation failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _working = false;
+        }
+    }
+
+    private sealed record PlanInfo(
+        SubscriptionTier Tier,
+        string Name,
+        string Price,
+        IReadOnlyList<string> Features);
+}

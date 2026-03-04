@@ -1,0 +1,202 @@
+@page "/projects/{ProjectId:guid}/plans/{PlanId:guid}"
+@attribute [Authorize(Roles = "Client")]
+@using FabMatch.Application.Features.Plans.Commands.ReanalysePlan
+@using FabMatch.Domain.Entities
+@using FabMatch.Domain.Interfaces
+@using Microsoft.AspNetCore.Identity
+@inject IMediator Mediator
+@inject IUnitOfWork UoW
+@inject UserManager<ApplicationUser> UserManager
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Plan Details – FabMatch</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_plan is null)
+{
+    <MudAlert Severity="Severity.Error">Plan not found.</MudAlert>
+}
+else
+{
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <div>
+            <MudText Typo="Typo.h5">@_plan.OriginalFileName</MudText>
+            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                Uploaded @_plan.CreatedAt.ToLocalTime().ToString("f")
+                @if (!string.IsNullOrEmpty(_plan.Revision)) { <span> · Rev. @_plan.Revision</span> }
+            </MudText>
+        </div>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary"
+                   StartIcon="@Icons.Material.Filled.AutoAwesome"
+                   OnClick="ReanalyseAsync" Disabled="_analysing">
+            @if (_analysing)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Analysing…</span>
+            }
+            else
+            {
+                <span>Re-analyse with AI</span>
+            }
+        </MudButton>
+    </MudStack>
+
+    <!-- Plan meta -->
+    <MudGrid Class="mb-4">
+        @if (_plan.Quantity.HasValue)
+        {
+            <MudItem xs="6" sm="3">
+                <MudCard Elevation="1"><MudCardContent>
+                    <MudText Typo="Typo.overline">Quantity</MudText>
+                    <MudText Typo="Typo.h6">@_plan.Quantity</MudText>
+                </MudCardContent></MudCard>
+            </MudItem>
+        }
+        @if (_plan.DurationDays.HasValue)
+        {
+            <MudItem xs="6" sm="3">
+                <MudCard Elevation="1"><MudCardContent>
+                    <MudText Typo="Typo.overline">Duration</MudText>
+                    <MudText Typo="Typo.h6">@_plan.DurationDays days</MudText>
+                </MudCardContent></MudCard>
+            </MudItem>
+        }
+        <MudItem xs="6" sm="3">
+            <MudCard Elevation="1"><MudCardContent>
+                <MudText Typo="Typo.overline">Format</MudText>
+                <MudText Typo="Typo.h6">@_plan.Format</MudText>
+            </MudCardContent></MudCard>
+        </MudItem>
+        <MudItem xs="6" sm="3">
+            <MudCard Elevation="1"><MudCardContent>
+                <MudText Typo="Typo.overline">Analyses</MudText>
+                <MudText Typo="Typo.h6">@_plan.Analyses.Count</MudText>
+            </MudCardContent></MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Latest analysis -->
+    @{
+        var latest = _plan.Analyses.OrderByDescending(a => a.CreatedAt).FirstOrDefault();
+    }
+    @if (latest is not null)
+    {
+        <MudText Typo="Typo.h6" Class="mb-2">Latest AI Analysis</MudText>
+        <MudCard Elevation="2" Class="mb-4">
+            <MudCardContent>
+                <MudText Typo="Typo.body1" Class="mb-3">@latest.Summary</MudText>
+                <MudGrid>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.overline">Identified Processes</MudText>
+                        <div>
+                            @foreach (var p in latest.IdentifiedProcesses)
+                            {
+                                <MudChip Size="Size.Small" Class="mr-1 mb-1">@p</MudChip>
+                            }
+                        </div>
+                    </MudItem>
+                    <MudItem xs="12" md="6">
+                        <MudText Typo="Typo.overline">Identified Materials</MudText>
+                        <div>
+                            @foreach (var m in latest.IdentifiedMaterials)
+                            {
+                                <MudChip Size="Size.Small" Color="Color.Info" Class="mr-1 mb-1">@m</MudChip>
+                            }
+                        </div>
+                    </MudItem>
+                    @if (latest.EstimatedManufacturingCost.HasValue)
+                    {
+                        <MudItem xs="6" sm="3">
+                            <MudText Typo="Typo.overline">Mfg. Cost est.</MudText>
+                            <MudText Typo="Typo.h6">
+                                @latest.EstimatedManufacturingCost?.ToString("N2") @latest.Currency
+                            </MudText>
+                        </MudItem>
+                    }
+                    @if (latest.EstimatedSellingPrice.HasValue)
+                    {
+                        <MudItem xs="6" sm="3">
+                            <MudText Typo="Typo.overline">Selling Price est.</MudText>
+                            <MudText Typo="Typo.h6">
+                                @latest.EstimatedSellingPrice?.ToString("N2") @latest.Currency
+                            </MudText>
+                        </MudItem>
+                    }
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.overline">Confidence</MudText>
+                        <MudProgressLinear Value="@((int)(latest.ConfidenceScore * 100))"
+                                          Color="@ConfidenceColor(latest.ConfidenceScore)"
+                                          Rounded="true" Size="Size.Medium" />
+                        <MudText Typo="Typo.caption">@(latest.ConfidenceScore * 100:F0)%</MudText>
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudText Typo="Typo.overline">AI Provider</MudText>
+                        <MudText Typo="Typo.body2">@latest.AiProvider</MudText>
+                    </MudItem>
+                </MudGrid>
+            </MudCardContent>
+        </MudCard>
+    }
+    else
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-4">
+            No AI analysis yet.
+            <MudButton Size="Size.Small" OnClick="ReanalyseAsync" Disabled="_analysing"
+                       Color="Color.Primary">Trigger Analysis</MudButton>
+        </MudAlert>
+    }
+
+    <MudButton Href="@($"/projects/{ProjectId}")" Variant="Variant.Outlined"
+               StartIcon="@Icons.Material.Filled.ArrowBack">
+        Back to Project
+    </MudButton>
+}
+
+@code {
+    [Parameter] public Guid ProjectId { get; set; }
+    [Parameter] public Guid PlanId { get; set; }
+
+    private bool _loading = true;
+    private bool _analysing;
+    private Plan? _plan;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _plan = await UoW.Plans.GetWithAnalysisAsync(PlanId);
+        _loading = false;
+    }
+
+    private async Task ReanalyseAsync()
+    {
+        _analysing = true;
+        try
+        {
+            var result = await Mediator.Send(new ReanalysePlanCommand(PlanId));
+            Snackbar.Add(
+                $"Re-analysis complete! Confidence: {result.ConfidenceScore * 100:F0}%",
+                Severity.Success);
+
+            // Reload plan with updated analyses
+            _plan = await UoW.Plans.GetWithAnalysisAsync(PlanId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Re-analysis failed: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _analysing = false;
+        }
+    }
+
+    private static Color ConfidenceColor(double score) => score switch
+    {
+        >= 0.8 => Color.Success,
+        >= 0.5 => Color.Warning,
+        _       => Color.Error
+    };
+}

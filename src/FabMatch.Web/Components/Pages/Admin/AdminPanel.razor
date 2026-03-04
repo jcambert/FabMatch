@@ -1,0 +1,207 @@
+@page "/admin"
+@attribute [Authorize(Roles = "Admin")]
+@using FabMatch.Application.Features.Admin.Queries.GetAllUsers
+@using FabMatch.Application.Features.Admin.Commands.TriggerGlobalMatching
+@using FabMatch.Application.Features.Admin.Commands.SetUserLockout
+@inject IMediator Mediator
+@inject ISnackbar Snackbar
+
+<PageTitle>Administration – FabMatch</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-4">Administration Panel</MudText>
+
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true">
+
+    <!-- ── User Management ──────────────────────────────── -->
+    <MudTabPanel Text="Users" Icon="@Icons.Material.Filled.People">
+        <MudStack Row="true" Class="pa-4 pb-0" AlignItems="AlignItems.Center" Spacing="2">
+            <MudTextField @bind-Value="_userSearch"
+                          Placeholder="Search by email or name…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          DebounceInterval="400"
+                          OnDebounceIntervalElapsed="LoadUsersAsync"
+                          Style="max-width:400px" />
+            <MudSpacer />
+            <MudText Typo="Typo.caption">@_users.Count user(s)</MudText>
+        </MudStack>
+
+        @if (_loadingUsers)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mx-4" />
+        }
+
+        <MudTable Items="_users" Dense="true" Hover="true" Class="ma-4" Elevation="0">
+            <HeaderContent>
+                <MudTh>Email</MudTh>
+                <MudTh>Name</MudTh>
+                <MudTh>Roles</MudTh>
+                <MudTh>Tier</MudTh>
+                <MudTh>Created</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate Context="u">
+                <MudTd>@u.Email</MudTd>
+                <MudTd>@u.FullName</MudTd>
+                <MudTd>
+                    @if (u.IsClient) { <MudChip Size="Size.Small" Color="Color.Info">Client</MudChip> }
+                    @if (u.IsSupplier) { <MudChip Size="Size.Small" Color="Color.Success">Supplier</MudChip> }
+                </MudTd>
+                <MudTd>@u.Tier</MudTd>
+                <MudTd>@u.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
+                <MudTd>
+                    @if (u.LockoutEnabled)
+                    {
+                        <MudChip Size="Size.Small" Color="Color.Error">Locked</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip Size="Size.Small" Color="Color.Success">Active</MudChip>
+                    }
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Size="Size.Small"
+                                   Icon="@(u.LockoutEnabled ? Icons.Material.Filled.LockOpen : Icons.Material.Filled.Lock)"
+                                   Color="@(u.LockoutEnabled ? Color.Success : Color.Warning)"
+                                   OnClick="() => ToggleLockAsync(u)" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudTabPanel>
+
+    <!-- ── AI Matching ──────────────────────────────────── -->
+    <MudTabPanel Text="AI Matching" Icon="@Icons.Material.Filled.AutoAwesome">
+        <MudCard Class="ma-4" Elevation="0">
+            <MudCardContent>
+                <MudText Typo="Typo.h6" Class="mb-2">Trigger Global AI Matching</MudText>
+                <MudText Typo="Typo.body2" Class="mb-4">
+                    Runs AI matchmaking for <strong>all active projects</strong> that have an embedding vector.
+                    Each project is matched against all suppliers above the affinity threshold.
+                </MudText>
+                <MudGrid>
+                    <MudItem xs="6" sm="3">
+                        <MudNumericField @bind-Value="_topN" Label="Top-N per project"
+                                         Min="1" Max="20" />
+                    </MudItem>
+                    <MudItem xs="6" sm="3">
+                        <MudNumericField @bind-Value="_threshold" Label="Affinity threshold"
+                                         Min="0.1" Max="0.99" Format="F2" Step="0.05m" />
+                    </MudItem>
+                </MudGrid>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                           StartIcon="@Icons.Material.Filled.PlayArrow"
+                           Class="mt-4" OnClick="RunMatchingAsync" Disabled="_runningMatch">
+                    @if (_runningMatch)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                        <span>Running…</span>
+                    }
+                    else
+                    {
+                        <span>Run Global Matching</span>
+                    }
+                </MudButton>
+
+                @if (_matchResult is not null)
+                {
+                    <MudAlert Severity="@(_matchResult.Errors.Count > 0 ? Severity.Warning : Severity.Success)"
+                              Class="mt-4">
+                        <MudText>
+                            Processed <strong>@_matchResult.ProjectsProcessed</strong> project(s),
+                            created <strong>@_matchResult.TotalMatchesCreated</strong> match proposals.
+                        </MudText>
+                        @foreach (var err in _matchResult.Errors)
+                        {
+                            <MudText Typo="Typo.caption" Color="Color.Error">⚠ @err</MudText>
+                        }
+                    </MudAlert>
+                }
+            </MudCardContent>
+        </MudCard>
+    </MudTabPanel>
+
+    <!-- ── Platform Stats ───────────────────────────────── -->
+    <MudTabPanel Text="Statistics" Icon="@Icons.Material.Filled.BarChart">
+        <MudGrid Class="ma-4">
+            @foreach (var stat in _stats)
+            {
+                <MudItem xs="6" md="3">
+                    <MudCard Elevation="2">
+                        <MudCardContent>
+                            <MudText Typo="Typo.overline">@stat.Label</MudText>
+                            <MudText Typo="Typo.h3">@stat.Value</MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    </MudTabPanel>
+
+</MudTabs>
+
+@code {
+    private string _userSearch = "";
+    private bool _loadingUsers = true;
+    private bool _runningMatch;
+    private int _topN = 5;
+    private decimal _threshold = 0.55m;
+    private List<AdminUserDto> _users = [];
+    private TriggerGlobalMatchingResult? _matchResult;
+
+    private readonly List<(string Label, string Value)> _stats =
+    [
+        ("Total Users", "–"),
+        ("Active Projects", "–"),
+        ("Total Matches", "–"),
+        ("Suppliers", "–")
+    ];
+
+    protected override async Task OnInitializedAsync()
+        => await LoadUsersAsync();
+
+    private async Task LoadUsersAsync()
+    {
+        _loadingUsers = true;
+        try
+        {
+            _users = (await Mediator.Send(new GetAllUsersQuery(_userSearch))).ToList();
+        }
+        finally { _loadingUsers = false; }
+    }
+
+    private async Task ToggleLockAsync(AdminUserDto user)
+    {
+        try
+        {
+            await Mediator.Send(new SetUserLockoutCommand(user.Id, !user.LockoutEnabled));
+            Snackbar.Add(user.LockoutEnabled ? "User unlocked." : "User locked.", Severity.Success);
+            await LoadUsersAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task RunMatchingAsync()
+    {
+        _runningMatch = true;
+        _matchResult = null;
+        try
+        {
+            _matchResult = await Mediator.Send(
+                new TriggerGlobalMatchingCommand(_topN, (double)_threshold));
+
+            Snackbar.Add(
+                $"Matching complete: {_matchResult.TotalMatchesCreated} matches created.",
+                _matchResult.Errors.Count > 0 ? Severity.Warning : Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _runningMatch = false; }
+    }
+}

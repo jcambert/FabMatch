@@ -75,6 +75,10 @@ public static class DependencyInjection
         // ── SignalR Notification Hub Service ───────────────────────────────────
         services.AddScoped<INotificationHubService, NotificationHubService>();
 
+        // ── Email Service (MailKit SMTP) ───────────────────────────────────────
+        services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.Section));
+        services.AddScoped<IEmailService, MailKitEmailService>();
+
         return services;
     }
 }

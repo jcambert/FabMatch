@@ -29,6 +29,9 @@ public interface IUnitOfWork : IAsyncDisposable
     /// <summary>Repository for notifications.</summary>
     INotificationRepository Notifications { get; }
 
+    /// <summary>Repository for supplier production capabilities.</summary>
+    ICapabilityRepository Capabilities { get; }
+
     /// <summary>
     /// Persists all pending changes in the current transaction.
     /// </summary>

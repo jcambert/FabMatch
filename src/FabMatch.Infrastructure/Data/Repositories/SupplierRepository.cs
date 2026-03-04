@@ -27,10 +27,11 @@ public sealed class SupplierRepository : Repository<Supplier>, ISupplierReposito
 
         if (!string.IsNullOrWhiteSpace(searchTerm))
         {
-            var term = searchTerm.ToLower();
+            // EF.Functions.ILike leverages the pg_trgm GIN index for fast case-insensitive search.
+            var pattern = $"%{searchTerm}%";
             query = query.Where(s =>
-                s.CompanyName.ToLower().Contains(term) ||
-                s.Presentation.ToLower().Contains(term));
+                EF.Functions.ILike(s.CompanyName, pattern) ||
+                EF.Functions.ILike(s.Presentation, pattern));
         }
 
         if (!string.IsNullOrWhiteSpace(country))

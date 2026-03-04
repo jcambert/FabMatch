@@ -1,0 +1,249 @@
+@page "/supplier/capabilities"
+@attribute [Authorize(Roles = "Supplier")]
+@using FabMatch.Application.Features.Suppliers.Commands.AddCapability
+@using FabMatch.Application.Features.Suppliers.Commands.DeleteCapability
+@using FabMatch.Application.Features.Suppliers.Queries.GetSupplierWithCapabilities
+@using FabMatch.Domain.Entities
+@using Microsoft.AspNetCore.Identity
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+@inject IDialogService DialogService
+
+<PageTitle>Production Capabilities – FabMatch</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <div>
+        <MudText Typo="Typo.h4">Production Capabilities</MudText>
+        <MudText Typo="Typo.body2">
+            Describe your machines and processes. This data powers AI-based project matching.
+        </MudText>
+    </div>
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="OpenAddDialog">Add Capability</MudButton>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_supplier is null)
+{
+    <MudAlert Severity="Severity.Warning">
+        Please complete your <MudLink Href="/supplier/profile">supplier profile</MudLink> first.
+    </MudAlert>
+}
+else
+{
+    @if (!_supplier.HasEmbedding && _supplier.Capabilities.Count > 0)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-3">
+            Your AI matching profile needs to be regenerated. Save your supplier profile to update it.
+        </MudAlert>
+    }
+
+    @if (_supplier.Capabilities.Count == 0)
+    {
+        <MudPaper Class="pa-8 d-flex flex-column align-center" Elevation="0"
+                  Style="border: 2px dashed #ccc; border-radius: 8px;">
+            <MudIcon Icon="@Icons.Material.Filled.Build" Size="Size.Large" Color="Color.Default" />
+            <MudText Class="mt-2">No capabilities added yet.</MudText>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" OnClick="OpenAddDialog">
+                Add Your First Capability
+            </MudButton>
+        </MudPaper>
+    }
+    else
+    {
+        <MudTable Items="_supplier.Capabilities" Hover="true" Elevation="2" Dense="false">
+            <HeaderContent>
+                <MudTh>Process Type</MudTh>
+                <MudTh>Equipment</MudTh>
+                <MudTh>Max Thickness (mm)</MudTh>
+                <MudTh>Max Dimensions (mm)</MudTh>
+                <MudTh>Tolerance (mm)</MudTh>
+                <MudTh>Notes</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate Context="cap">
+                <MudTd>
+                    <MudChip Color="Color.Primary" Size="Size.Small">@cap.ProcessType</MudChip>
+                </MudTd>
+                <MudTd>@(cap.EquipmentName ?? "–")</MudTd>
+                <MudTd>@(cap.MaxThicknessMm?.ToString("F1") ?? "–")</MudTd>
+                <MudTd>
+                    @if (cap.MaxDimensionXMm.HasValue && cap.MaxDimensionYMm.HasValue)
+                    {
+                        @($"{cap.MaxDimensionXMm:F0} × {cap.MaxDimensionYMm:F0}")
+                    }
+                    else { <span>–</span> }
+                </MudTd>
+                <MudTd>@(cap.ToleranceMm.HasValue ? $"±{cap.ToleranceMm:F2}" : "–")</MudTd>
+                <MudTd>
+                    <MudTooltip Text="@cap.Notes">
+                        <MudText Style="max-width:200px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            @(cap.Notes ?? "–")
+                        </MudText>
+                    </MudTooltip>
+                </MudTd>
+                <MudTd>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error" Size="Size.Small"
+                                   OnClick="() => DeleteCapabilityAsync(cap.Id)" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+}
+
+<!-- Add Capability Dialog -->
+<MudDialog @ref="_dialog" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
+    <TitleContent>Add Production Capability</TitleContent>
+    <DialogContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudSelect @bind-Value="_form.ProcessType" Label="Process Type *" Required="true">
+                    @foreach (var p in _processTypes)
+                    {
+                        <MudSelectItem Value="@p">@p</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudTextField @bind-Value="_form.EquipmentName" Label="Equipment / Machine Name"
+                              HelperText="e.g. Trumpf TruLaser 3030" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField @bind-Value="_form.MaxThicknessMm" Label="Max Thickness (mm)"
+                                 Format="F1" Min="0m" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField @bind-Value="_form.MaxDimensionXMm" Label="Max Width X (mm)"
+                                 Format="F0" Min="0m" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudNumericField @bind-Value="_form.MaxDimensionYMm" Label="Max Length Y (mm)"
+                                 Format="F0" Min="0m" />
+            </MudItem>
+            <MudItem xs="12" sm="6">
+                <MudNumericField @bind-Value="_form.ToleranceMm" Label="Tolerance ±(mm)"
+                                 Format="F3" Min="0m"
+                                 HelperText="e.g. 0.100 for ±0.1 mm" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudTextField @bind-Value="_form.Notes" Label="Notes" Lines="2"
+                              HelperText="Surface treatment, finishes, certifications for this process…" />
+            </MudItem>
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="() => _dialog?.Close()">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                   OnClick="SaveCapabilityAsync" Disabled="_saving">
+            @if (_saving) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
+            Add
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private bool _loading = true;
+    private bool _saving;
+    private SupplierDetailDto? _supplier;
+    private Guid _supplierId;
+    private MudDialog? _dialog;
+    private CapabilityForm _form = new();
+
+    private static readonly string[] _processTypes =
+    [
+        "Laser Cutting", "Plasma Cutting", "Waterjet Cutting", "Flame Cutting",
+        "Punching / Nibbling", "Bending / Folding", "Rolling", "Stamping",
+        "MIG/MAG Welding", "TIG Welding", "Spot Welding", "Laser Welding",
+        "CNC Milling", "CNC Turning", "EDM", "Grinding",
+        "Powder Coating", "Paint Spraying", "Anodising", "Zinc Plating",
+        "Assembly", "Quality Control / CMM", "Other"
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user == null) { _loading = false; return; }
+
+        // Resolve supplierId from user (simplified – in production read from profile claim)
+        // TODO: replace with claim-based lookup
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_supplierId == Guid.Empty) return;
+        _supplier = await Mediator.Send(new GetSupplierWithCapabilitiesQuery(_supplierId));
+    }
+
+    private void OpenAddDialog()
+    {
+        _form = new CapabilityForm();
+        _dialog?.Show();
+    }
+
+    private async Task SaveCapabilityAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_form.ProcessType))
+        {
+            Snackbar.Add("Please select a process type.", Severity.Warning);
+            return;
+        }
+        _saving = true;
+        try
+        {
+            await Mediator.Send(new AddCapabilityCommand(
+                _supplierId, _form.ProcessType, _form.EquipmentName,
+                _form.MaxThicknessMm, _form.MaxDimensionXMm, _form.MaxDimensionYMm,
+                _form.ToleranceMm, _form.Notes));
+
+            Snackbar.Add("Capability added.", Severity.Success);
+            _dialog?.Close();
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task DeleteCapabilityAsync(Guid capId)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Confirm Delete",
+            "Remove this capability from your profile?",
+            yesText: "Delete", cancelText: "Cancel");
+
+        if (confirmed != true) return;
+
+        try
+        {
+            await Mediator.Send(new DeleteCapabilityCommand(capId, _supplierId));
+            Snackbar.Add("Capability removed.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private sealed class CapabilityForm
+    {
+        public string ProcessType { get; set; } = string.Empty;
+        public string? EquipmentName { get; set; }
+        public decimal? MaxThicknessMm { get; set; }
+        public decimal? MaxDimensionXMm { get; set; }
+        public decimal? MaxDimensionYMm { get; set; }
+        public decimal? ToleranceMm { get; set; }
+        public string? Notes { get; set; }
+    }
+}

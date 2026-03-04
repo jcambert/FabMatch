@@ -22,6 +22,7 @@ public sealed class UnitOfWork : IUnitOfWork
     private IAnalysisRepository? _analyses;
     private IMatchRepository? _matches;
     private INotificationRepository? _notifications;
+    private ICapabilityRepository? _capabilities;
 
     public UnitOfWork(ApplicationDbContext db) => _db = db;
 
@@ -45,6 +46,9 @@ public sealed class UnitOfWork : IUnitOfWork
 
     /// <inheritdoc />
     public INotificationRepository Notifications => _notifications ??= new NotificationRepository(_db);
+
+    /// <inheritdoc />
+    public ICapabilityRepository Capabilities => _capabilities ??= new CapabilityRepository(_db);
 
     /// <inheritdoc />
     public async Task<int> SaveChangesAsync(CancellationToken ct = default)

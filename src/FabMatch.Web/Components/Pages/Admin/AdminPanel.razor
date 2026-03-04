@@ -46,19 +46,19 @@
                 <MudTd>@u.Email</MudTd>
                 <MudTd>@u.FullName</MudTd>
                 <MudTd>
-                    @if (u.IsClient) { <MudChip Size="Size.Small" Color="Color.Info">Client</MudChip> }
-                    @if (u.IsSupplier) { <MudChip Size="Size.Small" Color="Color.Success">Supplier</MudChip> }
+                    @if (u.IsClient) { <MudChip T="string" Size="Size.Small" Color="Color.Info">Client</MudChip> }
+                    @if (u.IsSupplier) { <MudChip T="string" Size="Size.Small" Color="Color.Success">Supplier</MudChip> }
                 </MudTd>
                 <MudTd>@u.Tier</MudTd>
                 <MudTd>@u.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
                 <MudTd>
                     @if (u.LockoutEnabled)
                     {
-                        <MudChip Size="Size.Small" Color="Color.Error">Locked</MudChip>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Error">Locked</MudChip>
                     }
                     else
                     {
-                        <MudChip Size="Size.Small" Color="Color.Success">Active</MudChip>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success">Active</MudChip>
                     }
                 </MudTd>
                 <MudTd>
@@ -82,12 +82,12 @@
                 </MudText>
                 <MudGrid>
                     <MudItem xs="6" sm="3">
-                        <MudNumericField @bind-Value="_topN" Label="Top-N per project"
+                        <MudNumericField T="int" @bind-Value="_topN" Label="Top-N per project"
                                          Min="1" Max="20" />
                     </MudItem>
                     <MudItem xs="6" sm="3">
-                        <MudNumericField @bind-Value="_threshold" Label="Affinity threshold"
-                                         Min="0.1" Max="0.99" Format="F2" Step="0.05m" />
+                        <MudNumericField T="decimal" @bind-Value="_threshold" Label="Affinity threshold"
+                                         Min="0.1m" Max="0.99m" Format="F2" Step="0.05m" />
                     </MudItem>
                 </MudGrid>
                 <MudButton Variant="Variant.Filled" Color="Color.Primary"

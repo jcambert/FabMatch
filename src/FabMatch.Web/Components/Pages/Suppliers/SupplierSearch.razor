@@ -10,7 +10,7 @@
 <!-- Filters panel -->
 <MudExpansionPanels Class="mb-4" Elevation="2">
     <MudExpansionPanel Text="Search & Filters" Icon="@Icons.Material.Filled.FilterList"
-                       IsInitiallyExpanded="true">
+                       Expanded="true">
         <MudGrid>
             <MudItem xs="12" md="4">
                 <MudTextField @bind-Value="_searchTerm" Label="Keyword search"
@@ -86,11 +86,11 @@ else
                             <div class="mb-2">
                                 @foreach (var m in s.Materials.Take(3))
                                 {
-                                    <MudChip Size="Size.Small" Class="mr-1 mb-1">@m</MudChip>
+                                    <MudChip T="string" Size="Size.Small" Class="mr-1 mb-1">@m</MudChip>
                                 }
                                 @if (s.Materials.Count > 3)
                                 {
-                                    <MudChip Size="Size.Small">+@(s.Materials.Count - 3)</MudChip>
+                                    <MudChip T="string" Size="Size.Small">+@(s.Materials.Count - 3)</MudChip>
                                 }
                             </div>
                         }

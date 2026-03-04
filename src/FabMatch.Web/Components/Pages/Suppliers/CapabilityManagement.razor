@@ -71,7 +71,7 @@ else
             </HeaderContent>
             <RowTemplate Context="cap">
                 <MudTd>
-                    <MudChip Color="Color.Primary" Size="Size.Small">@cap.ProcessType</MudChip>
+                    <MudChip T="string" Color="Color.Primary" Size="Size.Small">@cap.ProcessType</MudChip>
                 </MudTd>
                 <MudTd>@(cap.EquipmentName ?? "–")</MudTd>
                 <MudTd>@(cap.MaxThicknessMm?.ToString("F1") ?? "–")</MudTd>
@@ -101,15 +101,15 @@ else
 }
 
 <!-- Add Capability Dialog -->
-<MudDialog @ref="_dialog" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
+<MudDialog @bind-Visible="_addDialogOpen" Options="new DialogOptions { MaxWidth = MaxWidth.Medium, FullWidth = true }">
     <TitleContent>Add Production Capability</TitleContent>
     <DialogContent>
         <MudGrid>
             <MudItem xs="12" sm="6">
-                <MudSelect @bind-Value="_form.ProcessType" Label="Process Type *" Required="true">
+                <MudSelect T="string" @bind-Value="_form.ProcessType" Label="Process Type *" Required="true">
                     @foreach (var p in _processTypes)
                     {
-                        <MudSelectItem Value="@p">@p</MudSelectItem>
+                        <MudSelectItem T="string" Value="@p">@p</MudSelectItem>
                     }
                 </MudSelect>
             </MudItem>
@@ -118,19 +118,19 @@ else
                               HelperText="e.g. Trumpf TruLaser 3030" />
             </MudItem>
             <MudItem xs="12" sm="4">
-                <MudNumericField @bind-Value="_form.MaxThicknessMm" Label="Max Thickness (mm)"
+                <MudNumericField T="decimal?" @bind-Value="_form.MaxThicknessMm" Label="Max Thickness (mm)"
                                  Format="F1" Min="0m" />
             </MudItem>
             <MudItem xs="12" sm="4">
-                <MudNumericField @bind-Value="_form.MaxDimensionXMm" Label="Max Width X (mm)"
+                <MudNumericField T="decimal?" @bind-Value="_form.MaxDimensionXMm" Label="Max Width X (mm)"
                                  Format="F0" Min="0m" />
             </MudItem>
             <MudItem xs="12" sm="4">
-                <MudNumericField @bind-Value="_form.MaxDimensionYMm" Label="Max Length Y (mm)"
+                <MudNumericField T="decimal?" @bind-Value="_form.MaxDimensionYMm" Label="Max Length Y (mm)"
                                  Format="F0" Min="0m" />
             </MudItem>
             <MudItem xs="12" sm="6">
-                <MudNumericField @bind-Value="_form.ToleranceMm" Label="Tolerance ±(mm)"
+                <MudNumericField T="decimal?" @bind-Value="_form.ToleranceMm" Label="Tolerance ±(mm)"
                                  Format="F3" Min="0m"
                                  HelperText="e.g. 0.100 for ±0.1 mm" />
             </MudItem>
@@ -141,7 +141,7 @@ else
         </MudGrid>
     </DialogContent>
     <DialogActions>
-        <MudButton OnClick="() => _dialog?.Close()">Cancel</MudButton>
+        <MudButton OnClick="() => _addDialogOpen = false">Cancel</MudButton>
         <MudButton Variant="Variant.Filled" Color="Color.Primary"
                    OnClick="SaveCapabilityAsync" Disabled="_saving">
             @if (_saving) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" /> }
@@ -153,9 +153,9 @@ else
 @code {
     private bool _loading = true;
     private bool _saving;
+    private bool _addDialogOpen;
     private SupplierDetailDto? _supplier;
     private Guid _supplierId;
-    private MudDialog? _dialog;
     private CapabilityForm _form = new();
 
     private static readonly string[] _processTypes =
@@ -193,7 +193,7 @@ else
     private void OpenAddDialog()
     {
         _form = new CapabilityForm();
-        _dialog?.Show();
+        _addDialogOpen = true;
     }
 
     private async Task SaveCapabilityAsync()
@@ -212,7 +212,7 @@ else
                 _form.ToleranceMm, _form.Notes));
 
             Snackbar.Add("Capability added.", Severity.Success);
-            _dialog?.Close();
+            _addDialogOpen = false;
             await LoadAsync();
         }
         catch (Exception ex)

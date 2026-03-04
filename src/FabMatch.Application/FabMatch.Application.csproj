@@ -32,6 +32,12 @@
 
     <!-- Logging abstractions -->
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+
+    <!-- Query extensions and async operators used by handlers -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
+
+    <!-- IConfiguration abstraction used by payment command handlers -->
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
   </ItemGroup>
 
 </Project>

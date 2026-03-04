@@ -6,6 +6,7 @@ using FabMatch.Domain.Enums;
 using FabMatch.Domain.Interfaces;
 using FabMatch.Domain.Interfaces.Repositories;
 using FluentAssertions;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging.Abstractions;
 using Moq;
 using Serilog;
@@ -27,6 +28,8 @@ public sealed class RunMatchingHandlerTests
     private readonly Mock<INotificationRepository> _notifRepoMock;
     private readonly Mock<IAIService> _aiMock;
     private readonly Mock<INotificationHubService> _hubMock;
+    private readonly Mock<IEmailService> _emailMock;
+    private readonly Mock<UserManager<ApplicationUser>> _userManagerMock;
 
     public RunMatchingHandlerTests(ITestOutputHelper output)
     {
@@ -41,6 +44,8 @@ public sealed class RunMatchingHandlerTests
         _notifRepoMock = new Mock<INotificationRepository>();
         _aiMock = new Mock<IAIService>();
         _hubMock = new Mock<INotificationHubService>();
+        _emailMock = new Mock<IEmailService>();
+        _userManagerMock = CreateUserManagerMock();
 
         _uowMock.Setup(u => u.Projects).Returns(_projectRepoMock.Object);
         _uowMock.Setup(u => u.Suppliers).Returns(_supplierRepoMock.Object);
@@ -114,8 +119,21 @@ public sealed class RunMatchingHandlerTests
                 It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
+        _emailMock
+            .Setup(e => e.SendMatchNotificationAsync(
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _userManagerMock
+            .Setup(u => u.FindByIdAsync(clientUser.Id.ToString()))
+            .ReturnsAsync(clientUser);
+        _userManagerMock
+            .Setup(u => u.FindByIdAsync(supplierUser.Id.ToString()))
+            .ReturnsAsync(supplierUser);
+
         var handler = new RunMatchingHandler(
-            _uowMock.Object, _aiMock.Object, _hubMock.Object,
+            _uowMock.Object, _aiMock.Object, _hubMock.Object, _emailMock.Object, _userManagerMock.Object,
             NullLogger<RunMatchingHandler>.Instance);
 
         var cmd = new RunMatchingCommand(project.Id, TopN: 5, AffinityThreshold: 0.55);
@@ -147,12 +165,27 @@ public sealed class RunMatchingHandlerTests
             .ReturnsAsync(project);
 
         var handler = new RunMatchingHandler(
-            _uowMock.Object, _aiMock.Object, _hubMock.Object,
+            _uowMock.Object, _aiMock.Object, _hubMock.Object, _emailMock.Object, _userManagerMock.Object,
             NullLogger<RunMatchingHandler>.Instance);
 
         // Act & Assert
         var act = () => handler.Handle(new RunMatchingCommand(project.Id), CancellationToken.None).AsTask();
         await act.Should().ThrowAsync<InvalidOperationException>()
             .WithMessage("*active*");
+    }
+
+    private static Mock<UserManager<ApplicationUser>> CreateUserManagerMock()
+    {
+        var store = new Mock<IUserStore<ApplicationUser>>();
+        return new Mock<UserManager<ApplicationUser>>(
+            store.Object,
+            null!,
+            null!,
+            null!,
+            null!,
+            null!,
+            null!,
+            null!,
+            null!);
     }
 }

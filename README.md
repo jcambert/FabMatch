@@ -327,7 +327,7 @@ Configure Stripe keys and set up a webhook endpoint pointing to your deployment 
 
 ## Product Backlog (PBIs)
 
-### Completed (MVP)
+### Completed (MVP – Sprint 1)
 - [x] PBI-01: User registration and authentication (Client & Supplier roles)
 - [x] PBI-02: Client project management (CRUD)
 - [x] PBI-03: Plan upload with PDF→PNG conversion
@@ -339,19 +339,19 @@ Configure Stripe keys and set up a webhook endpoint pointing to your deployment 
 - [x] PBI-09: Stripe payment integration
 - [x] PBI-10: Docker deployment with PostgreSQL
 
-### Next Sprint
-- [ ] PBI-11: Supplier capability management UI (add/edit machines)
-- [ ] PBI-12: Admin panel (user management, trigger matching runs)
-- [ ] PBI-13: Email notifications (MailKit integration)
-- [ ] PBI-14: Project/supplier search with filters
-- [ ] PBI-15: Subscription management UI (upgrade / cancel)
-- [ ] PBI-16: Stripe webhook handler for subscription events
-- [ ] PBI-17: Full-text search with pg_trgm
-- [ ] PBI-18: AI re-analysis trigger on plan update
-- [ ] PBI-19: Password reset flow
-- [ ] PBI-20: Two-factor authentication (TOTP)
+### Completed (Sprint 2)
+- [x] PBI-11: Supplier capability management UI (add/edit machines per process type)
+- [x] PBI-12: Admin panel (user management, lock/unlock accounts, trigger global AI matching, platform stats)
+- [x] PBI-13: Email notifications via MailKit (match proposals, accept/reject events, invoice confirmation/failure, password reset, email confirmation)
+- [x] PBI-14: Supplier search with keyword, process and material filters
+- [x] PBI-15: Subscription management UI (upgrade / cancel via Stripe)
+- [x] PBI-16: Stripe webhook handler (subscription updated/deleted, invoice paid/failed with user email)
+- [x] PBI-18: AI re-analysis trigger on plan update (ReanalysePlan command + PlanDetail UI button)
+- [x] PBI-19: Password reset flow (ForgotPassword + ResetPassword pages with email link)
 
 ### Backlog
+- [ ] PBI-17: Full-text search with pg_trgm (PostgreSQL index-backed supplier/project search)
+- [ ] PBI-20: Two-factor authentication (TOTP with QR code, QRCoder package ready)
 - [ ] PBI-21: Azure Blob Storage adapter for production file storage
 - [ ] PBI-22: Export project to PDF quote request
 - [ ] PBI-23: In-app messaging between client and supplier

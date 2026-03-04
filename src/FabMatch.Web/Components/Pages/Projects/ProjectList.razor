@@ -2,11 +2,13 @@
 @attribute [Authorize(Roles = "Client")]
 @using FabMatch.Application.Features.Projects.Queries.GetUserProjects
 @using FabMatch.Domain.Entities
+@using FabMatch.Domain.Interfaces
 @using Microsoft.AspNetCore.Identity
 @inject IMediator Mediator
 @inject UserManager<ApplicationUser> UserManager
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
+@inject IUnitOfWork UoW
 
 <PageTitle>My Projects – FabMatch</PageTitle>
 
@@ -89,10 +91,12 @@ else
     {
         var authState = await AuthState.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(authState.User);
-        if (user == null) return;
+        if (user == null) { _loading = false; return; }
 
-        // TODO: fetch clientId from user profile
-        // For now use a placeholder
+        var client = await UoW.Clients.GetByUserIdAsync(user.Id);
+        if (client is not null)
+            _projects = (await Mediator.Send(new GetUserProjectsQuery(client.Id))).ToList();
+
         _loading = false;
     }
 

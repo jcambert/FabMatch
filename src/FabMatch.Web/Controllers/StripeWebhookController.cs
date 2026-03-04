@@ -22,15 +22,18 @@ public sealed class StripeWebhookController : ControllerBase
 {
     private readonly IPaymentService _payment;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IEmailService _email;
     private readonly ILogger<StripeWebhookController> _logger;
 
     public StripeWebhookController(
         IPaymentService payment,
         UserManager<ApplicationUser> userManager,
+        IEmailService email,
         ILogger<StripeWebhookController> logger)
     {
         _payment = payment;
         _userManager = userManager;
+        _email = email;
         _logger = logger;
     }
 
@@ -132,22 +135,56 @@ public sealed class StripeWebhookController : ControllerBase
         _logger.LogInformation("Subscription deleted for user {UserId}; tier reset to Free.", user.Id);
     }
 
-    /// <summary>Handles <c>invoice.payment_succeeded</c>: logs successful recurring payment.</summary>
-    private Task HandleInvoiceSucceededAsync(
+    /// <summary>Handles <c>invoice.payment_succeeded</c>: confirms subscription payment to the user.</summary>
+    private async Task HandleInvoiceSucceededAsync(
         Application.Common.Models.WebhookEvent evt, CancellationToken ct)
     {
         _logger.LogInformation("Invoice payment succeeded for resource {ResourceId}.", evt.ResourceId);
-        return Task.CompletedTask;
+
+        using var doc = System.Text.Json.JsonDocument.Parse(evt.RawPayload);
+        var dataObj = doc.RootElement.GetProperty("data").GetProperty("object");
+        var customerId = dataObj.TryGetProperty("customer", out var custEl) ? custEl.GetString() : null;
+        var amountPaid = dataObj.TryGetProperty("amount_paid", out var amtEl) ? amtEl.GetInt64() / 100m : 0m;
+        var currency = dataObj.TryGetProperty("currency", out var currEl) ? currEl.GetString()?.ToUpper() : "EUR";
+
+        if (string.IsNullOrEmpty(customerId)) return;
+        var user = await FindUserByCustomerIdAsync(customerId, ct);
+        if (user?.Email is null) return;
+
+        await _email.SendAsync(
+            user.Email,
+            user.FullName,
+            "Payment confirmation – FabMatch",
+            $"<p>Hi {user.FullName},</p>" +
+            $"<p>Your payment of <strong>{amountPaid:N2} {currency}</strong> has been processed successfully.</p>" +
+            "<p>Thank you for your subscription to FabMatch.</p>",
+            ct: ct);
     }
 
-    /// <summary>Handles <c>invoice.payment_failed</c>: logs payment failure (future: notify user).</summary>
-    private Task HandleInvoiceFailedAsync(
+    /// <summary>Handles <c>invoice.payment_failed</c>: notifies user of the payment failure.</summary>
+    private async Task HandleInvoiceFailedAsync(
         Application.Common.Models.WebhookEvent evt, CancellationToken ct)
     {
         _logger.LogWarning(
             "Invoice payment FAILED for resource {ResourceId}. Manual review may be required.",
             evt.ResourceId);
-        return Task.CompletedTask;
+
+        using var doc = System.Text.Json.JsonDocument.Parse(evt.RawPayload);
+        var dataObj = doc.RootElement.GetProperty("data").GetProperty("object");
+        var customerId = dataObj.TryGetProperty("customer", out var custEl) ? custEl.GetString() : null;
+
+        if (string.IsNullOrEmpty(customerId)) return;
+        var user = await FindUserByCustomerIdAsync(customerId, ct);
+        if (user?.Email is null) return;
+
+        await _email.SendAsync(
+            user.Email,
+            user.FullName,
+            "Payment failed – action required",
+            $"<p>Hi {user.FullName},</p>" +
+            "<p>We were unable to process your latest payment. Please update your payment method to avoid service interruption.</p>" +
+            "<p><a href=\"/subscription\">Manage your subscription</a></p>",
+            ct: ct);
     }
 
     /// <summary>Looks up a user by their Stripe customer ID.</summary>

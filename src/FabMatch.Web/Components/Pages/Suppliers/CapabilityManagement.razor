@@ -4,12 +4,14 @@
 @using FabMatch.Application.Features.Suppliers.Commands.DeleteCapability
 @using FabMatch.Application.Features.Suppliers.Queries.GetSupplierWithCapabilities
 @using FabMatch.Domain.Entities
+@using FabMatch.Domain.Interfaces
 @using Microsoft.AspNetCore.Identity
 @inject IMediator Mediator
 @inject UserManager<ApplicationUser> UserManager
 @inject AuthenticationStateProvider AuthState
 @inject ISnackbar Snackbar
 @inject IDialogService DialogService
+@inject IUnitOfWork UoW
 
 <PageTitle>Production Capabilities – FabMatch</PageTitle>
 
@@ -172,8 +174,13 @@ else
         var user = await UserManager.GetUserAsync(authState.User);
         if (user == null) { _loading = false; return; }
 
-        // Resolve supplierId from user (simplified – in production read from profile claim)
-        // TODO: replace with claim-based lookup
+        var supplierEntity = await UoW.Suppliers.GetByUserIdAsync(user.Id);
+        if (supplierEntity is not null)
+        {
+            _supplierId = supplierEntity.Id;
+            await LoadAsync();
+        }
+
         _loading = false;
     }
 

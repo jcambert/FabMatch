@@ -3,10 +3,12 @@
 @using FabMatch.Application.Features.Projects.Queries.GetUserProjects
 @using FabMatch.Application.Features.Notifications.Queries.GetNotifications
 @using FabMatch.Domain.Entities
+@using FabMatch.Domain.Interfaces
 @using Microsoft.AspNetCore.Identity
 @inject IMediator Mediator
 @inject UserManager<ApplicationUser> UserManager
 @inject AuthenticationStateProvider AuthState
+@inject IUnitOfWork UoW
 
 <PageTitle>Dashboard – FabMatch</PageTitle>
 
@@ -160,14 +162,24 @@ else
     protected override async Task OnInitializedAsync()
     {
         var authState = await AuthState.GetAuthenticationStateAsync();
-        var user = authState.User;
-        _userName = user.Identity?.Name ?? "User";
+        var appUser = await UserManager.GetUserAsync(authState.User);
+        if (appUser is null) { _loading = false; return; }
 
-        // TODO: resolve actual clientId from the user's claims or DB
-        // For now, placeholder empty data
-        _activeProjects = 0;
-        _pendingMatches = 0;
-        _unreadNotifications = 0;
+        _userName = appUser.FullName.Length > 0 ? appUser.FullName : appUser.Email ?? "User";
+
+        var client = await UoW.Clients.GetByUserIdAsync(appUser.Id);
+        if (client is not null)
+        {
+            var projects = await Mediator.Send(new GetUserProjectsQuery(client.Id));
+            _recentProjects = projects.OrderByDescending(p => p.CreatedAt).Take(5).ToList();
+            _activeProjects = projects.Count(p => p.Status == FabMatch.Domain.Enums.ProjectStatus.Active);
+            _pendingMatches = projects.Sum(p => p.MatchCount);
+        }
+
+        var notifications = await Mediator.Send(new GetNotificationsQuery(appUser.Id));
+        _notifications = notifications.ToList();
+        _unreadNotifications = _notifications.Count(n => !n.IsRead);
+
         _loading = false;
     }
 

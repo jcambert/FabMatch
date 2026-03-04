@@ -1,5 +1,6 @@
 @page "/notifications"
 @attribute [Authorize]
+@using FabMatch.Application.Features.Notifications.Commands.MarkAllNotificationsRead
 @using FabMatch.Application.Features.Notifications.Queries.GetNotifications
 @using FabMatch.Domain.Entities
 @using Microsoft.AspNetCore.Identity
@@ -79,7 +80,7 @@ else
 
     private async Task MarkAllReadAsync()
     {
-        // TODO: implement mark-all-as-read command
+        await Mediator.Send(new MarkAllNotificationsReadCommand(_userId));
         await LoadNotificationsAsync();
     }
 

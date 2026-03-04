@@ -2,12 +2,14 @@
 @attribute [Authorize(Roles = "Client")]
 @using FabMatch.Application.Features.Projects.Commands.CreateProject
 @using FabMatch.Domain.Entities
+@using FabMatch.Domain.Interfaces
 @using Microsoft.AspNetCore.Identity
 @inject IMediator Mediator
 @inject UserManager<ApplicationUser> UserManager
 @inject AuthenticationStateProvider AuthState
 @inject NavigationManager Nav
 @inject ISnackbar Snackbar
+@inject IUnitOfWork UoW
 
 <PageTitle>New Project – FabMatch</PageTitle>
 
@@ -74,7 +76,11 @@
     {
         var authState = await AuthState.GetAuthenticationStateAsync();
         var user = await UserManager.GetUserAsync(authState.User);
-        // TODO: resolve client ID from user profile
+        if (user is null) return;
+
+        var client = await UoW.Clients.GetByUserIdAsync(user.Id);
+        if (client is not null)
+            _clientId = client.Id;
     }
 
     private async Task HandleSubmitAsync()

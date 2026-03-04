@@ -3,6 +3,7 @@ using FabMatch.Domain.Entities;
 using FabMatch.Domain.Enums;
 using FabMatch.Domain.Interfaces;
 using Mediator;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 
 namespace FabMatch.Application.Features.Matches.Commands.RunMatching;
@@ -12,24 +13,30 @@ namespace FabMatch.Application.Features.Matches.Commands.RunMatching;
 /// 1. Loads project and all suppliers with embeddings.
 /// 2. Computes cosine-similarity or calls AI to score each (project, supplier) pair.
 /// 3. Creates <see cref="Match"/> entities for the top-N suppliers above the threshold.
-/// 4. Sends real-time notifications to both clients and suppliers.
+/// 4. Sends real-time notifications and emails to both clients and suppliers.
 /// </summary>
 public sealed class RunMatchingHandler : ICommandHandler<RunMatchingCommand, RunMatchingResult>
 {
     private readonly IUnitOfWork _uow;
     private readonly IAIService _ai;
     private readonly INotificationHubService _hub;
+    private readonly IEmailService _email;
+    private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<RunMatchingHandler> _logger;
 
     public RunMatchingHandler(
         IUnitOfWork uow,
         IAIService ai,
         INotificationHubService hub,
+        IEmailService email,
+        UserManager<ApplicationUser> userManager,
         ILogger<RunMatchingHandler> logger)
     {
         _uow = uow;
         _ai = ai;
         _hub = hub;
+        _email = email;
+        _userManager = userManager;
         _logger = logger;
     }
 
@@ -84,7 +91,7 @@ public sealed class RunMatchingHandler : ICommandHandler<RunMatchingCommand, Run
             var match = Match.Create(project.Id, supplier.Id, score, rationale);
             await _uow.Matches.AddAsync(match, ct);
 
-            // Notify client
+            // Notify client (SignalR)
             await _hub.SendToUserAsync(
                 project.Client.UserId,
                 NotificationType.NewMatch,
@@ -93,7 +100,7 @@ public sealed class RunMatchingHandler : ICommandHandler<RunMatchingCommand, Run
                 $"/projects/{project.Id}/matches",
                 ct);
 
-            // Notify supplier
+            // Notify supplier (SignalR)
             await _hub.SendToUserAsync(
                 supplier.UserId,
                 NotificationType.NewMatch,
@@ -101,6 +108,22 @@ public sealed class RunMatchingHandler : ICommandHandler<RunMatchingCommand, Run
                 $"Your profile matched project '{project.Title}'. Review it now.",
                 $"/matches/{match.Id}",
                 ct);
+
+            // Email client
+            var clientUser = await _userManager.FindByIdAsync(project.Client.UserId.ToString());
+            if (clientUser?.Email is not null)
+                await _email.SendMatchNotificationAsync(
+                    clientUser.Email, clientUser.FullName,
+                    project.Title, supplier.CompanyName,
+                    $"/projects/{project.Id}/matches", ct);
+
+            // Email supplier
+            var supplierUser = await _userManager.FindByIdAsync(supplier.UserId.ToString());
+            if (supplierUser?.Email is not null)
+                await _email.SendMatchNotificationAsync(
+                    supplierUser.Email, supplierUser.FullName,
+                    project.Title, project.Client.CompanyName,
+                    $"/matches/{match.Id}", ct);
 
             // Persist notification entities
             var clientNotif = Notification.Create(

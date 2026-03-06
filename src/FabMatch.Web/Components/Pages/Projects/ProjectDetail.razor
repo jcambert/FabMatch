@@ -1,0 +1,225 @@
+@page "/projects/{ProjectId:guid}"
+@attribute [Authorize]
+@using FabMatch.Application.Features.Matches.Commands.RunMatching
+@using FabMatch.Domain.Entities
+@using FabMatch.Domain.Enums
+@using FabMatch.Domain.Interfaces
+@inject IUnitOfWork UoW
+@inject IMediator Mediator
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>Project Details – FabMatch</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_project is null)
+{
+    <MudAlert Severity="Severity.Error">Project not found.</MudAlert>
+}
+else
+{
+    <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+        <div>
+            <MudText Typo="Typo.h5">@_project.Title</MudText>
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Class="mt-1">
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(_project.Status)">@_project.Status</MudChip>
+                @if (_project.IsPublic)
+                {
+                    <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Public" Color="Color.Info">Public</MudChip>
+                }
+            </MudStack>
+        </div>
+        <MudStack Row="true" Spacing="1">
+            <MudButton Href="@($"/projects/{ProjectId}/plans/upload")"
+                       Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Upload">
+                Upload Plan
+            </MudButton>
+            <MudButton Href="@($"/projects/{ProjectId}/matches")"
+                       Variant="Variant.Outlined" Color="Color.Secondary"
+                       StartIcon="@Icons.Material.Filled.Handshake">
+                View Matches (@_project.Matches.Count)
+            </MudButton>
+            @if (_project.Status == ProjectStatus.Draft && _project.Plans.Any())
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success"
+                           StartIcon="@Icons.Material.Filled.Send"
+                           OnClick="PublishAsync" Disabled="_working">
+                    Publish
+                </MudButton>
+            }
+            @if (_project.Status == ProjectStatus.Active)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Warning"
+                           StartIcon="@Icons.Material.Filled.AutoAwesome"
+                           OnClick="RunMatchingAsync" Disabled="_working">
+                    @if (_working) { <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-1" /> }
+                    Run AI Matching
+                </MudButton>
+            }
+        </MudStack>
+    </MudStack>
+
+    <!-- Project info -->
+    <MudGrid Class="mb-4">
+        <MudItem xs="12" md="8">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudText Typo="Typo.body1">@_project.Description</MudText>
+
+                    @if (_project.RequiredProcesses.Count > 0)
+                    {
+                        <MudText Typo="Typo.overline" Class="mt-3">Required Processes</MudText>
+                        <div>
+                            @foreach (var p in _project.RequiredProcesses)
+                            {
+                                <MudChip T="string" Size="Size.Small" Class="mr-1 mb-1">@p</MudChip>
+                            }
+                        </div>
+                    }
+                    @if (_project.Materials.Count > 0)
+                    {
+                        <MudText Typo="Typo.overline" Class="mt-2">Materials</MudText>
+                        <div>
+                            @foreach (var m in _project.Materials)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="mr-1 mb-1">@m</MudChip>
+                            }
+                        </div>
+                    }
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            <MudCard Elevation="2">
+                <MudCardContent>
+                    <MudList T="string" Dense="true">
+                        @if (_project.DeliveryDate.HasValue)
+                        {
+                            <MudListItem T="string" Icon="@Icons.Material.Filled.CalendarToday">
+                                <MudText Typo="Typo.caption">Delivery</MudText>
+                                <MudText Typo="Typo.body2">@_project.DeliveryDate.Value.ToString("dd/MM/yyyy")</MudText>
+                            </MudListItem>
+                        }
+                        @if (_project.BudgetEstimate.HasValue)
+                        {
+                            <MudListItem T="string" Icon="@Icons.Material.Filled.EuroSymbol">
+                                <MudText Typo="Typo.caption">Budget</MudText>
+                                <MudText Typo="Typo.body2">@_project.BudgetEstimate.Value.ToString("N0") @_project.BudgetCurrency</MudText>
+                            </MudListItem>
+                        }
+                        <MudListItem T="string" Icon="@Icons.Material.Filled.Schedule">
+                            <MudText Typo="Typo.caption">Created</MudText>
+                            <MudText Typo="Typo.body2">@_project.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</MudText>
+                        </MudListItem>
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+        </MudItem>
+    </MudGrid>
+
+    <!-- Plans list -->
+    <MudText Typo="Typo.h6" Class="mb-2">Technical Plans</MudText>
+    @if (_project.Plans.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info" Class="mb-4">
+            No plans yet.
+            <MudButton Size="Size.Small" Href="@($"/projects/{ProjectId}/plans/upload")" Color="Color.Primary">
+                Upload your first plan
+            </MudButton>
+        </MudAlert>
+    }
+    else
+    {
+        <MudTable Items="_project.Plans.OrderByDescending(p => p.CreatedAt)"
+                  Dense="true" Hover="true" Elevation="1" Class="mb-4">
+            <HeaderContent>
+                <MudTh>File</MudTh>
+                <MudTh>Format</MudTh>
+                <MudTh>Revision</MudTh>
+                <MudTh>Qty</MudTh>
+                <MudTh>AI Analyses</MudTh>
+                <MudTh>Uploaded</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate Context="plan">
+                <MudTd>@plan.OriginalFileName</MudTd>
+                <MudTd>@plan.Format</MudTd>
+                <MudTd>@(plan.Revision ?? "–")</MudTd>
+                <MudTd>@(plan.Quantity?.ToString() ?? "–")</MudTd>
+                <MudTd>@plan.Analyses.Count</MudTd>
+                <MudTd>@plan.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
+                <MudTd>
+                    <MudButton Size="Size.Small"
+                               Href="@($"/projects/{ProjectId}/plans/{plan.Id}")"
+                               Variant="Variant.Text">Details</MudButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    }
+
+    <MudButton Href="/projects" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.ArrowBack">
+        Back to Projects
+    </MudButton>
+}
+
+@code {
+    [Parameter] public Guid ProjectId { get; set; }
+
+    private bool _loading = true;
+    private bool _working;
+    private Project? _project;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _project = await UoW.Projects.GetWithPlansAndMatchesAsync(ProjectId);
+        _loading = false;
+    }
+
+    private async Task PublishAsync()
+    {
+        _working = true;
+        try
+        {
+            _project!.Publish();
+            UoW.Projects.Update(_project);
+            await UoW.SaveChangesAsync();
+            Snackbar.Add("Project published! AI matching can now be triggered.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _working = false; }
+    }
+
+    private async Task RunMatchingAsync()
+    {
+        _working = true;
+        try
+        {
+            var result = await Mediator.Send(new RunMatchingCommand(ProjectId, 5, 0.55));
+            Snackbar.Add($"Matching complete: {result.MatchesCreated} match(es) proposed.", Severity.Success);
+            _project = await UoW.Projects.GetWithPlansAndMatchesAsync(ProjectId);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _working = false; }
+    }
+
+    private static Color StatusColor(ProjectStatus status) => status switch
+    {
+        ProjectStatus.Active        => Color.Success,
+        ProjectStatus.InNegotiation => Color.Warning,
+        ProjectStatus.Awarded       => Color.Primary,
+        ProjectStatus.Completed     => Color.Dark,
+        ProjectStatus.Cancelled     => Color.Error,
+        _                           => Color.Default
+    };
+}

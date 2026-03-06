@@ -1,0 +1,147 @@
+@page "/suppliers/{SupplierId:guid}"
+@attribute [Authorize]
+@using FabMatch.Application.Features.Suppliers.Queries.GetSupplierWithCapabilities
+@inject IMediator Mediator
+
+<PageTitle>Supplier Profile – FabMatch</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_supplier is null)
+{
+    <MudAlert Severity="Severity.Error">Supplier not found.</MudAlert>
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3" Class="mb-4">
+        <MudAvatar Color="Color.Primary" Size="Size.Large">
+            @_supplier.CompanyName.FirstOrDefault()
+        </MudAvatar>
+        <div>
+            <MudText Typo="Typo.h5">@_supplier.CompanyName</MudText>
+            <MudStack Row="true" Spacing="1">
+                <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.LocationOn">@_supplier.Country</MudChip>
+                @if (_supplier.FoundedYear.HasValue)
+                {
+                    <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Business">Since @_supplier.FoundedYear</MudChip>
+                }
+                @if (!string.IsNullOrEmpty(_supplier.CompanySize))
+                {
+                    <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.Group">@_supplier.CompanySize</MudChip>
+                }
+            </MudStack>
+        </div>
+        @if (!string.IsNullOrEmpty(_supplier.WebsiteUrl))
+        {
+            <MudSpacer />
+            <MudButton Href="@_supplier.WebsiteUrl" Target="_blank"
+                       Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.OpenInNew" Size="Size.Small">
+                Website
+            </MudButton>
+        }
+    </MudStack>
+
+    <MudGrid>
+        <!-- Presentation -->
+        <MudItem xs="12" md="8">
+            <MudCard Elevation="2" Class="mb-4">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText Typo="Typo.h6">About</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body1">@_supplier.Presentation</MudText>
+                </MudCardContent>
+            </MudCard>
+
+            <!-- Capabilities -->
+            @if (_supplier.Capabilities.Count > 0)
+            {
+                <MudCard Elevation="2">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText Typo="Typo.h6">Production Capabilities</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudTable Items="_supplier.Capabilities" Dense="true" Hover="true" Elevation="0">
+                            <HeaderContent>
+                                <MudTh>Process</MudTh>
+                                <MudTh>Equipment</MudTh>
+                                <MudTh>Max Thickness (mm)</MudTh>
+                                <MudTh>Max X (mm)</MudTh>
+                                <MudTh>Max Y (mm)</MudTh>
+                                <MudTh>Tolerance (mm)</MudTh>
+                            </HeaderContent>
+                            <RowTemplate Context="cap">
+                                <MudTd>@cap.ProcessType</MudTd>
+                                <MudTd>@(cap.EquipmentName ?? "–")</MudTd>
+                                <MudTd>@(cap.MaxThicknessMm?.ToString("N1") ?? "–")</MudTd>
+                                <MudTd>@(cap.MaxDimensionXMm?.ToString("N0") ?? "–")</MudTd>
+                                <MudTd>@(cap.MaxDimensionYMm?.ToString("N0") ?? "–")</MudTd>
+                                <MudTd>@(cap.ToleranceMm?.ToString("N3") ?? "–")</MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    </MudCardContent>
+                </MudCard>
+            }
+        </MudItem>
+
+        <!-- Side panel -->
+        <MudItem xs="12" md="4">
+            @if (_supplier.Materials.Count > 0)
+            {
+                <MudCard Elevation="2" Class="mb-3">
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline">Materials</MudText>
+                        <div Class="mt-1">
+                            @foreach (var m in _supplier.Materials)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="mr-1 mb-1">@m</MudChip>
+                            }
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            }
+            @if (_supplier.Certifications.Count > 0)
+            {
+                <MudCard Elevation="2" Class="mb-3">
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline">Certifications</MudText>
+                        <div Class="mt-1">
+                            @foreach (var c in _supplier.Certifications)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success" Class="mr-1 mb-1">@c</MudChip>
+                            }
+                        </div>
+                    </MudCardContent>
+                </MudCard>
+            }
+            @if (_supplier.AnnualCapacityTonnes.HasValue)
+            {
+                <MudCard Elevation="2">
+                    <MudCardContent>
+                        <MudText Typo="Typo.overline">Annual Capacity</MudText>
+                        <MudText Typo="Typo.h6">@_supplier.AnnualCapacityTonnes.Value.ToString("N0") t/year</MudText>
+                    </MudCardContent>
+                </MudCard>
+            }
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public Guid SupplierId { get; set; }
+
+    private bool _loading = true;
+    private SupplierDetailDto? _supplier;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _supplier = await Mediator.Send(new GetSupplierWithCapabilitiesQuery(SupplierId));
+        _loading = false;
+    }
+}

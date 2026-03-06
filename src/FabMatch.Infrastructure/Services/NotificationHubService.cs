@@ -1,5 +1,6 @@
 using FabMatch.Application.Common.Interfaces;
 using FabMatch.Domain.Enums;
+using FabMatch.Domain.Interfaces;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 
@@ -65,10 +66,24 @@ public sealed class NotificationHubService : INotificationHubService
 /// </summary>
 public sealed class FabMatchNotificationHub : Hub
 {
+    private readonly IUnitOfWork _uow;
+    public FabMatchNotificationHub(IUnitOfWork uow) => _uow = uow;
+
     /// <summary>
-    /// Called when a client requests its unread notification count.
-    /// This is a placeholder – the count is pushed by the server, not pulled.
+    /// Called by the client to retrieve the current unread notification count.
+    /// Responds with an <c>UnreadCount</c> message containing the real count from the database.
     /// </summary>
     public async Task RequestUnreadCount()
-        => await Clients.Caller.SendAsync("UnreadCount", 0);
+    {
+        var userIdStr = Context.UserIdentifier;
+        if (Guid.TryParse(userIdStr, out var userId))
+        {
+            var count = await _uow.Notifications.CountUnreadAsync(userId);
+            await Clients.Caller.SendAsync("UnreadCount", count);
+        }
+        else
+        {
+            await Clients.Caller.SendAsync("UnreadCount", 0);
+        }
+    }
 }

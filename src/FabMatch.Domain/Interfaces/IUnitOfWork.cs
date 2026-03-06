@@ -32,6 +32,9 @@ public interface IUnitOfWork : IAsyncDisposable
     /// <summary>Repository for supplier production capabilities.</summary>
     ICapabilityRepository Capabilities { get; }
 
+    /// <summary>Repository for payment records.</summary>
+    IPaymentRepository Payments { get; }
+
     /// <summary>
     /// Persists all pending changes in the current transaction.
     /// </summary>

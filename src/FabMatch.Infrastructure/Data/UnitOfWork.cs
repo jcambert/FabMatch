@@ -23,6 +23,7 @@ public sealed class UnitOfWork : IUnitOfWork
     private IMatchRepository? _matches;
     private INotificationRepository? _notifications;
     private ICapabilityRepository? _capabilities;
+    private IPaymentRepository? _payments;
 
     public UnitOfWork(ApplicationDbContext db) => _db = db;
 
@@ -49,6 +50,9 @@ public sealed class UnitOfWork : IUnitOfWork
 
     /// <inheritdoc />
     public ICapabilityRepository Capabilities => _capabilities ??= new CapabilityRepository(_db);
+
+    /// <inheritdoc />
+    public IPaymentRepository Payments => _payments ??= new PaymentRepository(_db);
 
     /// <inheritdoc />
     public async Task<int> SaveChangesAsync(CancellationToken ct = default)

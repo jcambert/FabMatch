@@ -3,6 +3,7 @@ using FabMatch.Domain.Enums;
 using FabMatch.Domain.Interfaces;
 using Mediator;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace FabMatch.Application.Features.Admin.Queries.GetPlatformStats;
 
@@ -19,11 +20,12 @@ public sealed class GetPlatformStatsHandler : IQueryHandler<GetPlatformStatsQuer
 
     public async ValueTask<PlatformStatsDto> Handle(GetPlatformStatsQuery query, CancellationToken ct)
     {
-        var totalUsers     = _userManager.Users.Count();
-        var freeUsers         = _userManager.Users.Count(u => u.Tier == SubscriptionTier.Free);
-        var starterUsers      = _userManager.Users.Count(u => u.Tier == SubscriptionTier.Starter);
-        var professionalUsers = _userManager.Users.Count(u => u.Tier == SubscriptionTier.Professional);
-        var enterpriseUsers   = _userManager.Users.Count(u => u.Tier == SubscriptionTier.Enterprise);
+        // All counts are sequential — a single scoped DbContext cannot handle concurrent async ops.
+        var totalUsers        = await _userManager.Users.CountAsync(ct);
+        var freeUsers         = await _userManager.Users.CountAsync(u => u.Tier == SubscriptionTier.Free, ct);
+        var starterUsers      = await _userManager.Users.CountAsync(u => u.Tier == SubscriptionTier.Starter, ct);
+        var professionalUsers = await _userManager.Users.CountAsync(u => u.Tier == SubscriptionTier.Professional, ct);
+        var enterpriseUsers   = await _userManager.Users.CountAsync(u => u.Tier == SubscriptionTier.Enterprise, ct);
 
         var totalClients   = await _uow.Clients.CountAsync(ct: ct);
         var totalSuppliers = await _uow.Suppliers.CountAsync(ct: ct);

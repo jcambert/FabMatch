@@ -502,7 +502,8 @@
 
     protected override async Task OnInitializedAsync()
     {
-        await Task.WhenAll(LoadUsersAsync(), LoadStatsAsync());
+        await LoadStatsAsync();
+        await LoadUsersAsync();
     }
 
     private async Task OnTabChangedAsync(int index)
@@ -629,7 +630,9 @@
         {
             await Mediator.Send(new UpdateUserTierCommand(userId, tier));
             Snackbar.Add($"Plan mis à jour : {tier}.", Severity.Success);
-            await Task.WhenAll(LoadUsersAsync(), LoadClientsAsync(), LoadSuppliersAsync());
+            await LoadUsersAsync();
+        await LoadClientsAsync();
+        await LoadSuppliersAsync();
         }
         catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }

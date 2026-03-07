@@ -102,12 +102,14 @@ app.UseAntiforgery();
 app.MapPost("/auth/login/execute", async (
     [FromForm] string email,
     [FromForm] string password,
-    [FromForm] bool rememberMe,
+    [FromForm] string? rememberMe,
     [FromForm] string? returnUrl,
     SignInManager<ApplicationUser> signInManager) =>
 {
+    // The form sends hidden="false" + checkbox="true" when checked → "false,true"
+    var isPersistent = rememberMe != null && rememberMe.Contains("true");
     var result = await signInManager.PasswordSignInAsync(
-        email, password, rememberMe, lockoutOnFailure: true);
+        email, password, isPersistent, lockoutOnFailure: true);
 
     if (result.Succeeded)
     {

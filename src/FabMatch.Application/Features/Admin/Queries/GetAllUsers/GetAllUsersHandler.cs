@@ -28,28 +28,33 @@ public sealed class GetAllUsersHandler
                 u.LastName.ToLower().Contains(term));
         }
 
+        // Materialize the page first — DbContext reader fully closed after this.
         var users = await usersQuery
             .OrderBy(u => u.Email)
             .Skip(query.Skip)
             .Take(query.Take)
             .ToListAsync(ct);
 
-        var result = new List<AdminUserDto>();
-        foreach (var user in users)
-        {
-            var roles = await _userManager.GetRolesAsync(user);
-            result.Add(new AdminUserDto(
-                user.Id,
-                user.Email ?? "",
-                user.FullName,
-                roles.Contains("Client"),
-                roles.Contains("Supplier"),
-                user.EmailConfirmed,
-                user.LockoutEnabled,
-                user.Tier,
-                user.CreatedAt,
-                user.LastLoginAt));
-        }
-        return result;
+        if (users.Count == 0) return [];
+
+        // Fetch all role sets in three sequential queries (no concurrent DbContext access).
+        // Avoids the N+1 GetRolesAsync-per-user pattern that triggers the
+        // "second operation started" concurrency exception in Blazor Server.
+        var clientIds   = (await _userManager.GetUsersInRoleAsync("Client"))
+                            .Select(u => u.Id).ToHashSet();
+        var supplierIds = (await _userManager.GetUsersInRoleAsync("Supplier"))
+                            .Select(u => u.Id).ToHashSet();
+
+        return users.Select(u => new AdminUserDto(
+            u.Id,
+            u.Email ?? "",
+            u.FullName,
+            clientIds.Contains(u.Id),
+            supplierIds.Contains(u.Id),
+            u.EmailConfirmed,
+            u.LockoutEnabled,
+            u.Tier,
+            u.CreatedAt,
+            u.LastLoginAt)).ToList();
     }
 }

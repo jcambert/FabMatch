@@ -1,3 +1,4 @@
+using FabMatch.Application.Common.Interfaces;
 using FabMatch.Application.Features.Projects.Commands.CreateProject;
 using FabMatch.Domain.Entities;
 using FabMatch.Domain.Interfaces;
@@ -20,6 +21,7 @@ public sealed class CreateProjectHandlerTests
     private readonly Mock<IUnitOfWork> _uowMock;
     private readonly Mock<IProjectRepository> _projectRepoMock;
     private readonly Mock<IClientRepository> _clientRepoMock;
+    private readonly Mock<ITierPolicyService> _tierPolicyMock;
 
     public CreateProjectHandlerTests(ITestOutputHelper output)
     {
@@ -30,11 +32,20 @@ public sealed class CreateProjectHandlerTests
         _uowMock = new Mock<IUnitOfWork>();
         _projectRepoMock = new Mock<IProjectRepository>();
         _clientRepoMock = new Mock<IClientRepository>();
+        _tierPolicyMock = new Mock<ITierPolicyService>();
 
         _uowMock.Setup(u => u.Projects).Returns(_projectRepoMock.Object);
         _uowMock.Setup(u => u.Clients).Returns(_clientRepoMock.Object);
         _uowMock.Setup(u => u.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+
+        // By default allow project creation
+        _tierPolicyMock
+            .Setup(t => t.CanCreateProjectAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((true, (string?)null));
     }
+
+    private CreateProjectHandler BuildHandler() =>
+        new(_uowMock.Object, _tierPolicyMock.Object, NullLogger<CreateProjectHandler>.Instance);
 
     [Fact]
     public async Task Handle_WithValidClientAndCommand_ShouldCreateProject()
@@ -53,7 +64,7 @@ public sealed class CreateProjectHandlerTests
             .Setup(r => r.AddAsync(It.IsAny<Project>(), It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var handler = new CreateProjectHandler(_uowMock.Object, NullLogger<CreateProjectHandler>.Instance);
+        var handler = BuildHandler();
 
         var cmd = new CreateProjectCommand(
             clientId, "Bracket Assembly", "Laser-cut steel bracket", false,
@@ -81,7 +92,7 @@ public sealed class CreateProjectHandlerTests
             .Setup(r => r.GetByIdAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((Client?)null);
 
-        var handler = new CreateProjectHandler(_uowMock.Object, NullLogger<CreateProjectHandler>.Instance);
+        var handler = BuildHandler();
 
         var cmd = new CreateProjectCommand(
             Guid.NewGuid(), "Test", "Description", false, null, null, "EUR", null, null);
@@ -89,5 +100,31 @@ public sealed class CreateProjectHandlerTests
         // Act & Assert
         var act = () => handler.Handle(cmd, CancellationToken.None).AsTask();
         await act.Should().ThrowAsync<KeyNotFoundException>();
+    }
+
+    [Fact]
+    public async Task Handle_WhenTierLimitExceeded_ShouldThrowInvalidOperationException()
+    {
+        // Arrange
+        var clientId = Guid.NewGuid();
+        var client = Client.Create(Guid.NewGuid(), "ACME", "Aerospace", "Description");
+
+        _clientRepoMock
+            .Setup(r => r.GetByIdAsync(clientId, It.IsAny<CancellationToken>()))
+            .ReturnsAsync(client);
+
+        _tierPolicyMock
+            .Setup(t => t.CanCreateProjectAsync(It.IsAny<Guid>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync((false, "Limite de projets atteinte pour votre plan."));
+
+        var handler = BuildHandler();
+
+        var cmd = new CreateProjectCommand(
+            clientId, "Test", "Description", false, null, null, "EUR", null, null);
+
+        // Act & Assert
+        var act = () => handler.Handle(cmd, CancellationToken.None).AsTask();
+        await act.Should().ThrowAsync<InvalidOperationException>()
+            .WithMessage("*Limite*");
     }
 }

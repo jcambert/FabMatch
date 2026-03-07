@@ -163,6 +163,9 @@ static async Task MigrateDatabaseAsync(WebApplication app)
                 await roleManager.CreateAsync(new IdentityRole<Guid>(role));
         }
 
+        // Seed admin user from configuration
+        await SeedAdminUserAsync(scope, logger);
+
         logger.LogInformation("Database migration complete.");
 
         // Ensure pg_trgm extension and GIN indexes for full-text search (idempotent)
@@ -173,6 +176,41 @@ static async Task MigrateDatabaseAsync(WebApplication app)
         logger.LogError(ex, "Database migration failed.");
         throw;
     }
+}
+
+static async Task SeedAdminUserAsync(IServiceScope scope, ILogger<Program> logger)
+{
+    var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+    var email    = config["AdminSeed:Email"];
+    var password = config["AdminSeed:Password"];
+    var fullName = config["AdminSeed:FullName"] ?? "Admin";
+
+    if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
+        return;
+
+    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
+    if (await userManager.FindByEmailAsync(email) is not null)
+        return; // already exists
+
+    var admin = new ApplicationUser
+    {
+        UserName = email,
+        Email    = email,
+        FullName = fullName,
+        EmailConfirmed = true
+    };
+
+    var result = await userManager.CreateAsync(admin, password);
+    if (!result.Succeeded)
+    {
+        logger.LogWarning("Admin seed failed: {Errors}",
+            string.Join(", ", result.Errors.Select(e => e.Description)));
+        return;
+    }
+
+    await userManager.AddToRoleAsync(admin, "Admin");
+    logger.LogInformation("Admin user seeded: {Email}", email);
 }
 
 static async Task ApplyTrgmIndexesAsync(

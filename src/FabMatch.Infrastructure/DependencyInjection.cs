@@ -79,6 +79,9 @@ public static class DependencyInjection
         services.Configure<SmtpOptions>(configuration.GetSection(SmtpOptions.Section));
         services.AddScoped<IEmailService, MailKitEmailService>();
 
+        // ── Tier Policy (subscription limit enforcement) ───────────────────────
+        services.AddScoped<ITierPolicyService, TierPolicyService>();
+
         return services;
     }
 }

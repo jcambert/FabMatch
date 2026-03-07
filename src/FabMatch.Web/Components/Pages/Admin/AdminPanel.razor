@@ -1,22 +1,93 @@
 @page "/admin"
 @attribute [Authorize(Roles = "Admin")]
 @using FabMatch.Application.Features.Admin.Queries.GetAllUsers
+@using FabMatch.Application.Features.Admin.Queries.GetAllClients
+@using FabMatch.Application.Features.Admin.Queries.GetAllSuppliers
+@using FabMatch.Application.Features.Admin.Queries.GetPlatformStats
 @using FabMatch.Application.Features.Admin.Commands.TriggerGlobalMatching
 @using FabMatch.Application.Features.Admin.Commands.SetUserLockout
+@using FabMatch.Application.Features.Admin.Commands.UpdateUserTier
+@using FabMatch.Application.Features.Suppliers.Commands.DeleteCapability
+@using FabMatch.Application.Common.Interfaces
+@using FabMatch.Domain.Enums
+@using FabMatch.Domain.Interfaces
 @inject IMediator Mediator
+@inject IUnitOfWork Uow
 @inject ISnackbar Snackbar
+@inject NavigationManager Nav
 
 <PageTitle>Administration – FabMatch</PageTitle>
 
 <MudText Typo="Typo.h4" Class="mb-4">Administration Panel</MudText>
 
-<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true">
+<MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true"
+         ActivePanelIndexChanged="OnTabChangedAsync">
 
-    <!-- ── User Management ──────────────────────────────── -->
-    <MudTabPanel Text="Users" Icon="@Icons.Material.Filled.People">
+    <!-- ── Tab 0 : Tableau de bord ──────────────────────────────────── -->
+    <MudTabPanel Text="Tableau de bord" Icon="@Icons.Material.Filled.Dashboard">
+        @if (_loadingStats)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="ma-4" />
+        }
+        else if (_platformStats is not null)
+        {
+            <MudGrid Class="ma-4">
+                @foreach (var (label, value, icon, color) in StatCards())
+                {
+                    <MudItem xs="6" sm="4" md="3">
+                        <MudCard Elevation="2">
+                            <MudCardContent>
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                                    <MudIcon Icon="@icon" Color="@color" />
+                                    <div>
+                                        <MudText Typo="Typo.overline">@label</MudText>
+                                        <MudText Typo="Typo.h4">@value</MudText>
+                                    </div>
+                                </MudStack>
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+
+            <MudText Typo="Typo.h6" Class="mx-4 mb-2">Répartition par abonnement</MudText>
+            <MudGrid Class="mx-4 mb-4">
+                @foreach (var (tier, count, mrr) in TierRows())
+                {
+                    <MudItem xs="6" sm="3">
+                        <MudCard Elevation="1">
+                            <MudCardContent>
+                                <MudText Typo="Typo.overline">@tier</MudText>
+                                <MudText Typo="Typo.h5">@count <MudText Typo="Typo.caption" Inline="true">utilisateurs</MudText></MudText>
+                                @if (mrr > 0)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Success">+@mrr.ToString("C0") MRR</MudChip>
+                                }
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+
+            <MudCard Class="mx-4 mb-4" Elevation="2">
+                <MudCardContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                        <MudIcon Icon="@Icons.Material.Filled.AttachMoney" Color="Color.Success" Size="Size.Large" />
+                        <div>
+                            <MudText Typo="Typo.overline">MRR estimé</MudText>
+                            <MudText Typo="Typo.h3" Color="Color.Success">@_platformStats.EstimatedMRR.ToString("C0")</MudText>
+                        </div>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+        }
+    </MudTabPanel>
+
+    <!-- ── Tab 1 : Utilisateurs ─────────────────────────────────────── -->
+    <MudTabPanel Text="Utilisateurs" Icon="@Icons.Material.Filled.People">
         <MudStack Row="true" Class="pa-4 pb-0" AlignItems="AlignItems.Center" Spacing="2">
             <MudTextField @bind-Value="_userSearch"
-                          Placeholder="Search by email or name…"
+                          Placeholder="Rechercher par email ou nom…"
                           Adornment="Adornment.Start"
                           AdornmentIcon="@Icons.Material.Filled.Search"
                           Immediate="true"
@@ -24,7 +95,7 @@
                           OnDebounceIntervalElapsed="LoadUsersAsync"
                           Style="max-width:400px" />
             <MudSpacer />
-            <MudText Typo="Typo.caption">@_users.Count user(s)</MudText>
+            <MudText Typo="Typo.caption">@_users.Count utilisateur(s)</MudText>
         </MudStack>
 
         @if (_loadingUsers)
@@ -35,11 +106,11 @@
         <MudTable Items="_users" Dense="true" Hover="true" Class="ma-4" Elevation="0">
             <HeaderContent>
                 <MudTh>Email</MudTh>
-                <MudTh>Name</MudTh>
-                <MudTh>Roles</MudTh>
-                <MudTh>Tier</MudTh>
-                <MudTh>Created</MudTh>
-                <MudTh>Status</MudTh>
+                <MudTh>Nom</MudTh>
+                <MudTh>Rôles</MudTh>
+                <MudTh>Plan</MudTh>
+                <MudTh>Créé le</MudTh>
+                <MudTh>Statut</MudTh>
                 <MudTh>Actions</MudTh>
             </HeaderContent>
             <RowTemplate Context="u">
@@ -49,44 +120,311 @@
                     @if (u.IsClient) { <MudChip T="string" Size="Size.Small" Color="Color.Info">Client</MudChip> }
                     @if (u.IsSupplier) { <MudChip T="string" Size="Size.Small" Color="Color.Success">Supplier</MudChip> }
                 </MudTd>
-                <MudTd>@u.Tier</MudTd>
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small" Color="@TierColor(u.Tier)">@u.Tier</MudChip>
+                </MudTd>
                 <MudTd>@u.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
                 <MudTd>
                     @if (u.LockoutEnabled)
                     {
-                        <MudChip T="string" Size="Size.Small" Color="Color.Error">Locked</MudChip>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Error">Verrouillé</MudChip>
                     }
                     else
                     {
-                        <MudChip T="string" Size="Size.Small" Color="Color.Success">Active</MudChip>
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success">Actif</MudChip>
                     }
                 </MudTd>
                 <MudTd>
-                    <MudIconButton Size="Size.Small"
-                                   Icon="@(u.LockoutEnabled ? Icons.Material.Filled.LockOpen : Icons.Material.Filled.Lock)"
-                                   Color="@(u.LockoutEnabled ? Color.Success : Color.Warning)"
-                                   OnClick="() => ToggleLockAsync(u)" />
+                    <MudStack Row="true" Spacing="0">
+                        <MudIconButton Size="Size.Small"
+                                       Icon="@(u.LockoutEnabled ? Icons.Material.Filled.LockOpen : Icons.Material.Filled.Lock)"
+                                       Color="@(u.LockoutEnabled ? Color.Success : Color.Warning)"
+                                       Title="@(u.LockoutEnabled ? "Déverrouiller" : "Verrouiller")"
+                                       OnClick="() => ToggleLockAsync(u)" />
+                        <MudMenu Icon="@Icons.Material.Filled.Star" Size="Size.Small" Title="Changer plan">
+                            @foreach (var tier in Enum.GetValues<SubscriptionTier>())
+                            {
+                                var t = tier;
+                                <MudMenuItem OnClick="() => ChangeUserTierAsync(u.Id, t)">@t</MudMenuItem>
+                            }
+                        </MudMenu>
+                    </MudStack>
                 </MudTd>
             </RowTemplate>
         </MudTable>
     </MudTabPanel>
 
-    <!-- ── AI Matching ──────────────────────────────────── -->
-    <MudTabPanel Text="AI Matching" Icon="@Icons.Material.Filled.AutoAwesome">
+    <!-- ── Tab 2 : Clients ──────────────────────────────────────────── -->
+    <MudTabPanel Text="Clients" Icon="@Icons.Material.Filled.Business">
+        <MudStack Row="true" Class="pa-4 pb-0" AlignItems="AlignItems.Center" Spacing="2">
+            <MudTextField @bind-Value="_clientSearch"
+                          Placeholder="Rechercher un client…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          DebounceInterval="400"
+                          OnDebounceIntervalElapsed="LoadClientsAsync"
+                          Style="max-width:400px" />
+            <MudSpacer />
+            <MudText Typo="Typo.caption">@_clients.Count client(s)</MudText>
+        </MudStack>
+
+        @if (_loadingClients)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mx-4" />
+        }
+
+        <MudTable Items="_clients" Dense="true" Hover="true" Class="ma-4" Elevation="0">
+            <HeaderContent>
+                <MudTh>Entreprise</MudTh>
+                <MudTh>Email</MudTh>
+                <MudTh>Secteur</MudTh>
+                <MudTh>Taille</MudTh>
+                <MudTh>Plan</MudTh>
+                <MudTh>Statut</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate Context="c">
+                <MudTd>
+                    <MudLink Href="@($"/clients/{c.ClientId}/projects")">@c.CompanyName</MudLink>
+                </MudTd>
+                <MudTd>@c.Email</MudTd>
+                <MudTd>@c.Industry</MudTd>
+                <MudTd>@(c.CompanySize ?? "–")</MudTd>
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small" Color="@TierColor(c.Tier)">@c.Tier</MudChip>
+                </MudTd>
+                <MudTd>
+                    @if (c.LockoutEnabled)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Error">Verrouillé</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success">Actif</MudChip>
+                    }
+                </MudTd>
+                <MudTd>
+                    <MudStack Row="true" Spacing="0">
+                        <MudIconButton Size="Size.Small"
+                                       Icon="@(c.LockoutEnabled ? Icons.Material.Filled.LockOpen : Icons.Material.Filled.Lock)"
+                                       Color="@(c.LockoutEnabled ? Color.Success : Color.Warning)"
+                                       Title="@(c.LockoutEnabled ? "Déverrouiller" : "Verrouiller")"
+                                       OnClick="() => ToggleClientLockAsync(c)" />
+                        <MudMenu Icon="@Icons.Material.Filled.Star" Size="Size.Small" Title="Changer plan">
+                            @foreach (var tier in Enum.GetValues<SubscriptionTier>())
+                            {
+                                var t = tier;
+                                <MudMenuItem OnClick="() => ChangeUserTierAsync(c.UserId, t)">@t</MudMenuItem>
+                            }
+                        </MudMenu>
+                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.OpenInNew"
+                                       Href="@($"/clients/{c.ClientId}/projects")"
+                                       Title="Voir les projets" />
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudTabPanel>
+
+    <!-- ── Tab 3 : Fournisseurs ─────────────────────────────────────── -->
+    <MudTabPanel Text="Fournisseurs" Icon="@Icons.Material.Filled.Factory">
+        <MudStack Row="true" Class="pa-4 pb-0" AlignItems="AlignItems.Center" Spacing="2">
+            <MudTextField @bind-Value="_supplierSearch"
+                          Placeholder="Rechercher un fournisseur…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.Search"
+                          Immediate="true"
+                          DebounceInterval="400"
+                          OnDebounceIntervalElapsed="LoadSuppliersAsync"
+                          Style="max-width:400px" />
+            <MudSpacer />
+            <MudText Typo="Typo.caption">@_suppliers.Count fournisseur(s)</MudText>
+        </MudStack>
+
+        @if (_loadingSuppliers)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mx-4" />
+        }
+
+        <MudTable Items="_suppliers" Dense="true" Hover="true" Class="ma-4" Elevation="0">
+            <HeaderContent>
+                <MudTh>Entreprise</MudTh>
+                <MudTh>Email</MudTh>
+                <MudTh>Pays</MudTh>
+                <MudTh>Capacités</MudTh>
+                <MudTh>Embedding</MudTh>
+                <MudTh>Plan</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate Context="s">
+                <MudTd>
+                    <MudLink Href="@($"/suppliers/{s.SupplierId}")">@s.CompanyName</MudLink>
+                </MudTd>
+                <MudTd>@s.Email</MudTd>
+                <MudTd>@s.Country</MudTd>
+                <MudTd>@s.CapabilityCount</MudTd>
+                <MudTd>
+                    @if (s.HasEmbedding)
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Success">Vectorisé</MudChip>
+                    }
+                    else
+                    {
+                        <MudChip T="string" Size="Size.Small" Color="Color.Warning">Manquant</MudChip>
+                    }
+                </MudTd>
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small" Color="@TierColor(s.Tier)">@s.Tier</MudChip>
+                </MudTd>
+                <MudTd>
+                    <MudStack Row="true" Spacing="0">
+                        <MudIconButton Size="Size.Small"
+                                       Icon="@(s.LockoutEnabled ? Icons.Material.Filled.LockOpen : Icons.Material.Filled.Lock)"
+                                       Color="@(s.LockoutEnabled ? Color.Success : Color.Warning)"
+                                       Title="@(s.LockoutEnabled ? "Déverrouiller" : "Verrouiller")"
+                                       OnClick="() => ToggleSupplierLockAsync(s)" />
+                        <MudMenu Icon="@Icons.Material.Filled.Star" Size="Size.Small" Title="Changer plan">
+                            @foreach (var tier in Enum.GetValues<SubscriptionTier>())
+                            {
+                                var t = tier;
+                                <MudMenuItem OnClick="() => ChangeUserTierAsync(s.UserId, t)">@t</MudMenuItem>
+                            }
+                        </MudMenu>
+                        <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.OpenInNew"
+                                       Href="@($"/suppliers/{s.SupplierId}")"
+                                       Title="Voir le profil" />
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudTabPanel>
+
+    <!-- ── Tab 4 : Capacités de production ──────────────────────────── -->
+    <MudTabPanel Text="Capacités" Icon="@Icons.Material.Filled.Build">
+        <MudStack Row="true" Class="pa-4 pb-0" AlignItems="AlignItems.Center" Spacing="2">
+            <MudTextField @bind-Value="_capabilityFilter"
+                          Placeholder="Filtrer par procédé, matière…"
+                          Adornment="Adornment.Start"
+                          AdornmentIcon="@Icons.Material.Filled.FilterList"
+                          Immediate="true"
+                          Style="max-width:400px" />
+            <MudSpacer />
+            <MudText Typo="Typo.caption">@FilteredCapabilities.Count() capacité(s)</MudText>
+        </MudStack>
+
+        @if (_loadingCapabilities)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mx-4" />
+        }
+
+        <MudTable Items="@FilteredCapabilities" Dense="true" Hover="true" Class="ma-4" Elevation="0">
+            <HeaderContent>
+                <MudTh>Fournisseur</MudTh>
+                <MudTh>Procédé</MudTh>
+                <MudTh>Équipement</MudTh>
+                <MudTh>Épaisseur max (mm)</MudTh>
+                <MudTh>Tolérance (mm)</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate Context="cap">
+                <MudTd>
+                    <MudLink Href="@($"/suppliers/{cap.SupplierId}")">@cap.SupplierName</MudLink>
+                </MudTd>
+                <MudTd><MudChip T="string" Size="Size.Small" Color="Color.Primary">@cap.ProcessType</MudChip></MudTd>
+                <MudTd>@(cap.EquipmentName ?? "–")</MudTd>
+                <MudTd>@(cap.MaxThicknessMm.HasValue ? cap.MaxThicknessMm.Value.ToString("F1") : "–")</MudTd>
+                <MudTd>@(cap.ToleranceMm.HasValue ? $"±{cap.ToleranceMm.Value:F2}" : "–")</MudTd>
+                <MudTd>
+                    <MudIconButton Size="Size.Small" Icon="@Icons.Material.Filled.Delete"
+                                   Color="Color.Error"
+                                   Title="Supprimer"
+                                   OnClick="() => DeleteCapabilityAsync(cap.CapabilityId, cap.SupplierId)" />
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudTabPanel>
+
+    <!-- ── Tab 5 : Abonnements ──────────────────────────────────────── -->
+    <MudTabPanel Text="Abonnements" Icon="@Icons.Material.Filled.CreditCard">
+        @if (_loadingStats)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="ma-4" />
+        }
+        else if (_platformStats is not null)
+        {
+            <MudCard Class="ma-4" Elevation="3">
+                <MudCardContent>
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                        <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Success" Size="Size.Large" />
+                        <div>
+                            <MudText Typo="Typo.overline">Revenu Mensuel Récurrent (MRR)</MudText>
+                            <MudText Typo="Typo.h2" Color="Color.Success">@_platformStats.EstimatedMRR.ToString("C0")</MudText>
+                        </div>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+
+            <MudGrid Class="mx-4 mb-4">
+                @foreach (var plan in PlanDetails())
+                {
+                    <MudItem xs="12" sm="6" md="3">
+                        <MudCard Elevation="2">
+                            <MudCardHeader>
+                                <CardHeaderContent>
+                                    <MudText Typo="Typo.h6">@plan.Name</MudText>
+                                    <MudText Typo="Typo.caption">@plan.Price</MudText>
+                                </CardHeaderContent>
+                            </MudCardHeader>
+                            <MudCardContent>
+                                <MudText Typo="Typo.h4">@plan.Count <MudText Typo="Typo.caption" Inline="true">utilisateurs</MudText></MudText>
+                                <MudDivider Class="my-2" />
+                                @foreach (var feature in plan.Features)
+                                {
+                                    <MudText Typo="Typo.body2">✓ @feature</MudText>
+                                }
+                            </MudCardContent>
+                        </MudCard>
+                    </MudItem>
+                }
+            </MudGrid>
+
+            <MudText Typo="Typo.h6" Class="mx-4 mb-2">Limites par plan</MudText>
+            <MudTable Items="@PlanLimits()" Dense="true" Class="mx-4 mb-4" Elevation="1">
+                <HeaderContent>
+                    <MudTh>Plan</MudTh>
+                    <MudTh>Projets max</MudTh>
+                    <MudTh>Analyses IA / mois</MudTh>
+                    <MudTh>Matching illimité</MudTh>
+                    <MudTh>Support prioritaire</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="lim">
+                    <MudTd><MudChip T="string" Size="Size.Small" Color="@TierColor(lim.Tier)">@lim.Tier</MudChip></MudTd>
+                    <MudTd>@(lim.MaxProjects < 0 ? "∞" : lim.MaxProjects.ToString())</MudTd>
+                    <MudTd>@(lim.MaxAnalyses < 0 ? "∞" : lim.MaxAnalyses.ToString())</MudTd>
+                    <MudTd>@(lim.UnlimitedMatching ? "✓" : "–")</MudTd>
+                    <MudTd>@(lim.PrioritySupport ? "✓" : "–")</MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudTabPanel>
+
+    <!-- ── Tab 6 : IA & Matching ────────────────────────────────────── -->
+    <MudTabPanel Text="IA & Matching" Icon="@Icons.Material.Filled.AutoAwesome">
         <MudCard Class="ma-4" Elevation="0">
             <MudCardContent>
-                <MudText Typo="Typo.h6" Class="mb-2">Trigger Global AI Matching</MudText>
+                <MudText Typo="Typo.h6" Class="mb-2">Déclencher le matching global</MudText>
                 <MudText Typo="Typo.body2" Class="mb-4">
-                    Runs AI matchmaking for <strong>all active projects</strong> that have an embedding vector.
-                    Each project is matched against all suppliers above the affinity threshold.
+                    Lance le matchmaking IA pour <strong>tous les projets actifs</strong> disposant d'un vecteur d'embedding.
+                    Chaque projet est mis en correspondance avec les fournisseurs dépassant le seuil d'affinité.
                 </MudText>
                 <MudGrid>
                     <MudItem xs="6" sm="3">
-                        <MudNumericField T="int" @bind-Value="_topN" Label="Top-N per project"
+                        <MudNumericField T="int" @bind-Value="_topN" Label="Top-N par projet"
                                          Min="1" Max="20" />
                     </MudItem>
                     <MudItem xs="6" sm="3">
-                        <MudNumericField T="decimal" @bind-Value="_threshold" Label="Affinity threshold"
+                        <MudNumericField T="decimal" @bind-Value="_threshold" Label="Seuil d'affinité"
                                          Min="0.1m" Max="0.99m" Format="F2" Step="0.05m" />
                     </MudItem>
                 </MudGrid>
@@ -96,11 +434,11 @@
                     @if (_runningMatch)
                     {
                         <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
-                        <span>Running…</span>
+                        <span>En cours…</span>
                     }
                     else
                     {
-                        <span>Run Global Matching</span>
+                        <span>Lancer le matching global</span>
                     }
                 </MudButton>
 
@@ -109,8 +447,8 @@
                     <MudAlert Severity="@(_matchResult.Errors.Count > 0 ? Severity.Warning : Severity.Success)"
                               Class="mt-4">
                         <MudText>
-                            Processed <strong>@_matchResult.ProjectsProcessed</strong> project(s),
-                            created <strong>@_matchResult.TotalMatchesCreated</strong> match proposals.
+                            <strong>@_matchResult.ProjectsProcessed</strong> projet(s) traité(s),
+                            <strong>@_matchResult.TotalMatchesCreated</strong> proposition(s) créée(s).
                         </MudText>
                         @foreach (var err in _matchResult.Errors)
                         {
@@ -122,44 +460,74 @@
         </MudCard>
     </MudTabPanel>
 
-    <!-- ── Platform Stats ───────────────────────────────── -->
-    <MudTabPanel Text="Statistics" Icon="@Icons.Material.Filled.BarChart">
-        <MudGrid Class="ma-4">
-            @foreach (var stat in _stats)
-            {
-                <MudItem xs="6" md="3">
-                    <MudCard Elevation="2">
-                        <MudCardContent>
-                            <MudText Typo="Typo.overline">@stat.Label</MudText>
-                            <MudText Typo="Typo.h3">@stat.Value</MudText>
-                        </MudCardContent>
-                    </MudCard>
-                </MudItem>
-            }
-        </MudGrid>
-    </MudTabPanel>
-
 </MudTabs>
 
 @code {
+    // ── Users ─────────────────────────────────────────────────────────
     private string _userSearch = "";
     private bool _loadingUsers = true;
+    private List<AdminUserDto> _users = [];
+
+    // ── Clients ───────────────────────────────────────────────────────
+    private string _clientSearch = "";
+    private bool _loadingClients;
+    private List<AdminClientDto> _clients = [];
+
+    // ── Suppliers ─────────────────────────────────────────────────────
+    private string _supplierSearch = "";
+    private bool _loadingSuppliers;
+    private List<AdminSupplierDto> _suppliers = [];
+
+    // ── Capabilities ──────────────────────────────────────────────────
+    private string _capabilityFilter = "";
+    private bool _loadingCapabilities;
+    private List<CapabilityRow> _capabilities = [];
+    private IEnumerable<CapabilityRow> FilteredCapabilities =>
+        string.IsNullOrWhiteSpace(_capabilityFilter)
+            ? _capabilities
+            : _capabilities.Where(c =>
+                c.ProcessType.Contains(_capabilityFilter, StringComparison.OrdinalIgnoreCase) ||
+                (c.EquipmentName ?? "").Contains(_capabilityFilter, StringComparison.OrdinalIgnoreCase) ||
+                c.SupplierName.Contains(_capabilityFilter, StringComparison.OrdinalIgnoreCase));
+
+    // ── Stats ─────────────────────────────────────────────────────────
+    private bool _loadingStats = true;
+    private PlatformStatsDto? _platformStats;
+
+    // ── Matching ──────────────────────────────────────────────────────
     private bool _runningMatch;
     private int _topN = 5;
     private decimal _threshold = 0.55m;
-    private List<AdminUserDto> _users = [];
     private TriggerGlobalMatchingResult? _matchResult;
 
-    private readonly List<(string Label, string Value)> _stats =
-    [
-        ("Total Users", "–"),
-        ("Active Projects", "–"),
-        ("Total Matches", "–"),
-        ("Suppliers", "–")
-    ];
-
     protected override async Task OnInitializedAsync()
-        => await LoadUsersAsync();
+    {
+        await Task.WhenAll(LoadUsersAsync(), LoadStatsAsync());
+    }
+
+    private async Task OnTabChangedAsync(int index)
+    {
+        switch (index)
+        {
+            case 0 when _platformStats is null:
+                await LoadStatsAsync();
+                break;
+            case 2 when _clients.Count == 0:
+                await LoadClientsAsync();
+                break;
+            case 3 when _suppliers.Count == 0:
+                await LoadSuppliersAsync();
+                break;
+            case 4 when _capabilities.Count == 0:
+                await LoadCapabilitiesAsync();
+                break;
+            case 5 when _platformStats is null:
+                await LoadStatsAsync();
+                break;
+        }
+    }
+
+    // ── Load methods ──────────────────────────────────────────────────
 
     private async Task LoadUsersAsync()
     {
@@ -171,18 +539,110 @@
         finally { _loadingUsers = false; }
     }
 
+    private async Task LoadClientsAsync()
+    {
+        _loadingClients = true;
+        try
+        {
+            _clients = (await Mediator.Send(new GetAllClientsAdminQuery(_clientSearch))).ToList();
+        }
+        finally { _loadingClients = false; }
+    }
+
+    private async Task LoadSuppliersAsync()
+    {
+        _loadingSuppliers = true;
+        try
+        {
+            _suppliers = (await Mediator.Send(new GetAllSuppliersAdminQuery(_supplierSearch))).ToList();
+        }
+        finally { _loadingSuppliers = false; }
+    }
+
+    private async Task LoadCapabilitiesAsync()
+    {
+        _loadingCapabilities = true;
+        try
+        {
+            var suppliers = await Uow.Suppliers.GetAllAsync();
+            var rows = new List<CapabilityRow>();
+            foreach (var sup in suppliers)
+            {
+                var caps = await Uow.Capabilities.GetBySupplierIdAsync(sup.Id);
+                rows.AddRange(caps.Select(c => new CapabilityRow(
+                    c.Id, sup.Id, sup.CompanyName, c.ProcessType,
+                    c.EquipmentName, c.MaxThicknessMm, c.ToleranceMm)));
+            }
+            _capabilities = rows.OrderBy(r => r.SupplierName).ThenBy(r => r.ProcessType).ToList();
+        }
+        finally { _loadingCapabilities = false; }
+    }
+
+    private async Task LoadStatsAsync()
+    {
+        _loadingStats = true;
+        try
+        {
+            _platformStats = await Mediator.Send(new GetPlatformStatsQuery());
+        }
+        finally { _loadingStats = false; }
+    }
+
+    // ── Actions ───────────────────────────────────────────────────────
+
     private async Task ToggleLockAsync(AdminUserDto user)
     {
         try
         {
             await Mediator.Send(new SetUserLockoutCommand(user.Id, !user.LockoutEnabled));
-            Snackbar.Add(user.LockoutEnabled ? "User unlocked." : "User locked.", Severity.Success);
+            Snackbar.Add(user.LockoutEnabled ? "Utilisateur déverrouillé." : "Utilisateur verrouillé.", Severity.Success);
             await LoadUsersAsync();
         }
-        catch (Exception ex)
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ToggleClientLockAsync(AdminClientDto client)
+    {
+        try
         {
-            Snackbar.Add(ex.Message, Severity.Error);
+            await Mediator.Send(new SetUserLockoutCommand(client.UserId, !client.LockoutEnabled));
+            Snackbar.Add(client.LockoutEnabled ? "Client déverrouillé." : "Client verrouillé.", Severity.Success);
+            await LoadClientsAsync();
         }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ToggleSupplierLockAsync(AdminSupplierDto supplier)
+    {
+        try
+        {
+            await Mediator.Send(new SetUserLockoutCommand(supplier.UserId, !supplier.LockoutEnabled));
+            Snackbar.Add(supplier.LockoutEnabled ? "Fournisseur déverrouillé." : "Fournisseur verrouillé.", Severity.Success);
+            await LoadSuppliersAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task ChangeUserTierAsync(Guid userId, SubscriptionTier tier)
+    {
+        try
+        {
+            await Mediator.Send(new UpdateUserTierCommand(userId, tier));
+            Snackbar.Add($"Plan mis à jour : {tier}.", Severity.Success);
+            await Task.WhenAll(LoadUsersAsync(), LoadClientsAsync(), LoadSuppliersAsync());
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task DeleteCapabilityAsync(Guid capabilityId, Guid supplierId)
+    {
+        try
+        {
+            await Mediator.Send(new DeleteCapabilityCommand(capabilityId, supplierId));
+            Snackbar.Add("Capacité supprimée.", Severity.Success);
+            await LoadCapabilitiesAsync();
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
     }
 
     private async Task RunMatchingAsync()
@@ -193,15 +653,70 @@
         {
             _matchResult = await Mediator.Send(
                 new TriggerGlobalMatchingCommand(_topN, (double)_threshold));
-
             Snackbar.Add(
-                $"Matching complete: {_matchResult.TotalMatchesCreated} matches created.",
+                $"Matching terminé : {_matchResult.TotalMatchesCreated} proposition(s) créée(s).",
                 _matchResult.Errors.Count > 0 ? Severity.Warning : Severity.Success);
         }
-        catch (Exception ex)
-        {
-            Snackbar.Add(ex.Message, Severity.Error);
-        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
         finally { _runningMatch = false; }
     }
+
+    // ── View helpers ──────────────────────────────────────────────────
+
+    private IEnumerable<(string Label, string Value, string Icon, Color Color)> StatCards()
+    {
+        if (_platformStats is null) yield break;
+        yield return ("Utilisateurs totaux",   _platformStats.TotalUsers.ToString(),      Icons.Material.Filled.People,          Color.Primary);
+        yield return ("Clients",               _platformStats.TotalClients.ToString(),    Icons.Material.Filled.Business,        Color.Info);
+        yield return ("Fournisseurs",          _platformStats.TotalSuppliers.ToString(),  Icons.Material.Filled.Factory,         Color.Secondary);
+        yield return ("Projets actifs",        _platformStats.ActiveProjects.ToString(),  Icons.Material.Filled.FolderOpen,      Color.Success);
+        yield return ("Projets totaux",        _platformStats.TotalProjects.ToString(),   Icons.Material.Filled.Folder,          Color.Default);
+        yield return ("Matchs totaux",         _platformStats.TotalMatches.ToString(),    Icons.Material.Filled.Handshake,       Color.Warning);
+        yield return ("Matchs finalisés",      _platformStats.FinalisedMatches.ToString(),Icons.Material.Filled.CheckCircle,    Color.Success);
+        yield return ("Analyses IA",           _platformStats.TotalAnalyses.ToString(),   Icons.Material.Filled.AutoAwesome,     Color.Tertiary);
+    }
+
+    private IEnumerable<(string Tier, int Count, decimal Mrr)> TierRows()
+    {
+        if (_platformStats is null) yield break;
+        yield return ("Free",         _platformStats.FreeUsers,         0m);
+        yield return ("Starter",      _platformStats.StarterUsers,      _platformStats.StarterUsers      * 49m);
+        yield return ("Professional", _platformStats.ProfessionalUsers, _platformStats.ProfessionalUsers * 149m);
+        yield return ("Enterprise",   _platformStats.EnterpriseUsers,   _platformStats.EnterpriseUsers   * 499m);
+    }
+
+    private IEnumerable<PlanDetail> PlanDetails()
+    {
+        if (_platformStats is null) yield break;
+        yield return new("Free",         "Gratuit",    _platformStats.FreeUsers,         ["3 projets", "5 analyses/mois", "Matching standard"]);
+        yield return new("Starter",      "49 €/mois",  _platformStats.StarterUsers,      ["15 projets", "50 analyses/mois", "Matching avancé"]);
+        yield return new("Professional", "149 €/mois", _platformStats.ProfessionalUsers, ["Projets illimités", "Analyses illimitées", "Support prioritaire"]);
+        yield return new("Enterprise",   "499 €/mois", _platformStats.EnterpriseUsers,   ["Tout Professional", "SLA dédié", "Onboarding personnalisé"]);
+    }
+
+    private IEnumerable<(SubscriptionTier Tier, int MaxProjects, int MaxAnalyses, bool UnlimitedMatching, bool PrioritySupport)> PlanLimits()
+    {
+        yield return (SubscriptionTier.Free,         3,  5,  false, false);
+        yield return (SubscriptionTier.Starter,      15, 50, true,  false);
+        yield return (SubscriptionTier.Professional, -1, -1, true,  true);
+        yield return (SubscriptionTier.Enterprise,   -1, -1, true,  true);
+    }
+
+    private static Color TierColor(SubscriptionTier tier) => tier switch
+    {
+        SubscriptionTier.Starter      => Color.Info,
+        SubscriptionTier.Professional => Color.Warning,
+        SubscriptionTier.Enterprise   => Color.Error,
+        _                             => Color.Default
+    };
+
+    // ── Local record types ────────────────────────────────────────────
+
+    private sealed record CapabilityRow(
+        Guid CapabilityId, Guid SupplierId, string SupplierName,
+        string ProcessType, string? EquipmentName,
+        decimal? MaxThicknessMm, decimal? ToleranceMm);
+
+    private sealed record PlanDetail(
+        string Name, string Price, int Count, string[] Features);
 }

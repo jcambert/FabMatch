@@ -15,4 +15,13 @@ public sealed class AnalysisRepository : Repository<Analysis>, IAnalysisReposito
             .Where(a => a.PlanId == planId)
             .OrderByDescending(a => a.CreatedAt)
             .ToListAsync(ct);
+
+    /// <inheritdoc />
+    public async Task<int> CountByClientThisMonthAsync(Guid clientId, CancellationToken ct = default)
+    {
+        var firstOfMonth = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        return await Set
+            .Where(a => a.Plan.Project.ClientId == clientId && a.CreatedAt >= firstOfMonth)
+            .CountAsync(ct);
+    }
 }

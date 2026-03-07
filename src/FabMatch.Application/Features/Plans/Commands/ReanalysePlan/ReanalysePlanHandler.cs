@@ -16,6 +16,7 @@ public sealed class ReanalysePlanHandler : ICommandHandler<ReanalysePlanCommand,
     private readonly IFileStorageService _storage;
     private readonly IAIService _ai;
     private readonly INotificationHubService _hub;
+    private readonly ITierPolicyService _tierPolicy;
     private readonly ILogger<ReanalysePlanHandler> _logger;
 
     public ReanalysePlanHandler(
@@ -23,12 +24,14 @@ public sealed class ReanalysePlanHandler : ICommandHandler<ReanalysePlanCommand,
         IFileStorageService storage,
         IAIService ai,
         INotificationHubService hub,
+        ITierPolicyService tierPolicy,
         ILogger<ReanalysePlanHandler> logger)
     {
         _uow = uow;
         _storage = storage;
         _ai = ai;
         _hub = hub;
+        _tierPolicy = tierPolicy;
         _logger = logger;
     }
 
@@ -41,6 +44,11 @@ public sealed class ReanalysePlanHandler : ICommandHandler<ReanalysePlanCommand,
 
         var project = await _uow.Projects.GetWithPlansAndMatchesAsync(plan.ProjectId, ct)
             ?? throw new KeyNotFoundException($"Project {plan.ProjectId} not found.");
+
+        // ── Tier limit check ──────────────────────────────────────────────────
+        var (allowed, reason) = await _tierPolicy.CanRunAnalysisAsync(project.ClientId, ct);
+        if (!allowed)
+            throw new InvalidOperationException(reason);
 
         // 2. Retrieve the stored image bytes
         var imageStream = await _storage.GetStreamAsync(plan.StorageKey, ct);

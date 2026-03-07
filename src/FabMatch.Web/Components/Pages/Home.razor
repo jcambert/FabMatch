@@ -5,9 +5,16 @@
 @code {
     protected override async Task OnInitializedAsync()
     {
-        var authenticationState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
-        var isAuthenticated = authenticationState.User.Identity?.IsAuthenticated ?? false;
-        var target = isAuthenticated ? "/dashboard" : "/auth/login";
-        NavigationManager.NavigateTo(target, forceLoad: false);
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity?.IsAuthenticated ?? true)
+        {
+            NavigationManager.NavigateTo("/auth/login");
+            return;
+        }
+
+        var target = user.IsInRole("Admin") ? "/admin" : "/dashboard";
+        NavigationManager.NavigateTo(target);
     }
 }

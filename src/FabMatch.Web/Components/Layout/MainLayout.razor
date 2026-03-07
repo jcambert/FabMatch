@@ -19,15 +19,23 @@
 
         <AuthorizeView>
             <Authorized>
-                <!-- Notification badge -->
-                <MudBadge Content="@NotifState.UnreadCount"
-                          Color="Color.Error"
-                          Overlap="true"
-                          Visible="@(NotifState.UnreadCount > 0)">
-                    <MudIconButton Icon="@Icons.Material.Filled.Notifications"
-                                   Color="Color.Inherit"
-                                   Href="/notifications" />
-                </MudBadge>
+                <!-- Notification badge (Client / Supplier uniquement) -->
+                <AuthorizeView Roles="Client,Supplier" Context="notifCtx">
+                    <MudBadge Content="@NotifState.UnreadCount"
+                              Color="Color.Error"
+                              Overlap="true"
+                              Visible="@(NotifState.UnreadCount > 0)">
+                        <MudIconButton Icon="@Icons.Material.Filled.Notifications"
+                                       Color="Color.Inherit"
+                                       Href="/notifications" />
+                    </MudBadge>
+                </AuthorizeView>
+
+                <!-- Chip "Admin" visible pour l'admin -->
+                <AuthorizeView Roles="Admin" Context="adminBadgeCtx">
+                    <MudChip T="string" Color="Color.Warning" Size="Size.Small" Class="mr-1">Admin</MudChip>
+                </AuthorizeView>
+
                 <MudMenu AnchorOrigin="Origin.BottomRight">
                     <ActivatorContent>
                         <MudAvatar Color="Color.Secondary" Size="Size.Small" Class="ml-2" Style="cursor:pointer">
@@ -35,16 +43,18 @@
                         </MudAvatar>
                     </ActivatorContent>
                     <ChildContent>
-                        <MudMenuItem Href="/profile">Profile</MudMenuItem>
-                        <MudMenuItem Href="/settings">Settings</MudMenuItem>
-                        <MudDivider />
-                        <MudMenuItem Href="/auth/logout">Sign Out</MudMenuItem>
+                        <AuthorizeView Roles="Client,Supplier" Context="menuUserCtx">
+                            <MudMenuItem Href="/profile">Profil</MudMenuItem>
+                            <MudMenuItem Href="/settings">Paramètres</MudMenuItem>
+                            <MudDivider />
+                        </AuthorizeView>
+                        <MudMenuItem Href="/auth/logout">Déconnexion</MudMenuItem>
                     </ChildContent>
                 </MudMenu>
             </Authorized>
             <NotAuthorized>
-                <MudButton Href="/auth/login" Variant="Variant.Text" Color="Color.Inherit">Sign In</MudButton>
-                <MudButton Href="/auth/register" Variant="Variant.Filled" Color="Color.Secondary" Class="ml-1">Register</MudButton>
+                <MudButton Href="/auth/login" Variant="Variant.Text" Color="Color.Inherit">Connexion</MudButton>
+                <MudButton Href="/auth/register" Variant="Variant.Filled" Color="Color.Secondary" Class="ml-1">Inscription</MudButton>
             </NotAuthorized>
         </AuthorizeView>
     </MudAppBar>

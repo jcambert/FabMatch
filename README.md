@@ -341,7 +341,7 @@ Configure Stripe keys and set up a webhook endpoint pointing to your deployment 
 
 ### Completed (Sprint 2)
 - [x] PBI-11: Supplier capability management UI (add/edit machines per process type)
-- [x] PBI-12: Admin panel (user management, lock/unlock accounts, trigger global AI matching, platform stats)
+- [x] PBI-12: Admin panel foundation (user management, lock/unlock, global AI matching, platform stats)
 - [x] PBI-13: Email notifications via MailKit (match proposals, accept/reject events, invoice confirmation/failure, password reset, email confirmation)
 - [x] PBI-14: Supplier search with keyword, process and material filters
 - [x] PBI-15: Subscription management UI (upgrade / cancel via Stripe)
@@ -349,14 +349,47 @@ Configure Stripe keys and set up a webhook endpoint pointing to your deployment 
 - [x] PBI-18: AI re-analysis trigger on plan update (ReanalysePlan command + PlanDetail UI button)
 - [x] PBI-19: Password reset flow (ForgotPassword + ResetPassword pages with email link)
 
-### Backlog
+### Sprint 3 — Administration & Monétisation
+
+#### User Stories
+
+**Épopée : Espace Administrateur isolé**
+
+> En tant qu'administrateur, je veux un espace dédié entièrement séparé de l'espace client/fournisseur, afin de gérer la plateforme sans être perturbé par des fonctionnalités non pertinentes.
+
+| ID | User Story | Critères d'acceptation |
+|----|-----------|----------------------|
+| US-A1 | En tant qu'admin, je veux une navigation dédiée sans les pages client/fournisseur | Nav admin-only · pas de lien Billing · redirection vers `/admin` au login |
+| US-A2 | En tant qu'admin, je veux voir les KPIs de la plateforme en temps réel | 8 KPIs · répartition par tier · MRR estimé |
+| US-A3 | En tant qu'admin, je veux gérer tous les comptes utilisateurs (verrouiller, changer de plan) | Tableau · filtre email/nom · actions lock/unlock · menu plan |
+| US-A4 | En tant qu'admin, je veux gérer les profils clients | Liste clients · lien vers projets · changement plan · verrouillage |
+| US-A5 | En tant qu'admin, je veux gérer les profils fournisseurs | Liste · badge embedding · compteur capacités · actions |
+| US-A6 | En tant qu'admin, je veux modérer les capacités de production | Liste plate · filtre · suppression avec confirmation |
+| US-A7 | En tant qu'admin, je veux visualiser le MRR et la répartition des abonnements | Carte MRR · détail par plan · table des limites |
+| US-A8 | En tant qu'admin, je veux déclencher le matching IA global | Top-N · seuil affinité · résultat avec compteurs et erreurs |
+| US-A9 | En tant qu'admin, je veux consulter un journal d'audit de toutes les actions admin | Liste horodatée · type d'action · cible · auteur |
+| US-A10 | En tant qu'admin, je veux me connecter temporairement en tant qu'un utilisateur | Bouton "Impersonate" · retour admin en un clic |
+
+#### PBIs (Sprint 3)
+
+- [x] PBI-A1: Admin navigation isolation — nav dédiée, redirection `/admin` au login, suppression Billing/Dashboard de la vue admin
+- [x] PBI-A2: Admin tableau de bord KPIs — 8 stat cards + répartition tier + MRR (`GetPlatformStatsQuery`)
+- [x] PBI-A3: Gestion utilisateurs — tableau + lock/unlock + changement tier (`UpdateUserTierCommand`, `SetUserLockoutCommand`)
+- [x] PBI-A4: Gestion clients — liste + filtre + actions (`GetAllClientsAdminQuery`)
+- [x] PBI-A5: Gestion fournisseurs — liste + badge embedding + actions (`GetAllSuppliersAdminQuery`)
+- [x] PBI-A6: Modération capacités — liste plate + suppression (`DeleteCapabilityCommand`)
+- [x] PBI-A7: Dashboard abonnements / MRR — cartes par plan + table limites
+- [x] PBI-A8: Contrôle IA & Matching — trigger global matching (`TriggerGlobalMatchingCommand`)
+- [ ] PBI-A9: Audit log — historique horodaté des actions admin (lock, plan, suppression) dans un onglet dédié
+- [ ] PBI-A10: Impersonate user — l'admin se connecte temporairement en tant qu'un utilisateur pour déboguer
+
+### Backlog général
 - [ ] PBI-17: Full-text search with pg_trgm (PostgreSQL index-backed supplier/project search)
 - [ ] PBI-20: Two-factor authentication (TOTP with QR code, QRCoder package ready)
 - [ ] PBI-21: Azure Blob Storage adapter for production file storage
 - [ ] PBI-22: Export project to PDF quote request
 - [ ] PBI-23: In-app messaging between client and supplier
 - [ ] PBI-24: Rating and review system post-project
-- [ ] PBI-25: Analytics dashboard for admins
 - [ ] PBI-26: Multi-language support (i18n)
 
 ---

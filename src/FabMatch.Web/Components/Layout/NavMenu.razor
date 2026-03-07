@@ -1,41 +1,58 @@
 <MudNavMenu>
     <AuthorizeView>
         <Authorized>
-            <MudNavLink Href="/dashboard" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
 
-            @* Client features *@
-            <AuthorizeView Roles="Client" Context="clientCtx">
-                <MudNavGroup Title="My Projects" Icon="@Icons.Material.Filled.Engineering" Expanded="true">
-                    <MudNavLink Href="/projects">All Projects</MudNavLink>
-                    <MudNavLink Href="/projects/create">New Project</MudNavLink>
-                </MudNavGroup>
-                <MudNavLink Href="/suppliers" Icon="@Icons.Material.Filled.Factory">Find Suppliers</MudNavLink>
-                <MudNavLink Href="/matches" Icon="@Icons.Material.Filled.Handshake">My Matches</MudNavLink>
-            </AuthorizeView>
-
-            @* Supplier features *@
-            <AuthorizeView Roles="Supplier" Context="supplierCtx">
-                <MudNavLink Href="/supplier/profile" Icon="@Icons.Material.Filled.Business">My Profile</MudNavLink>
-                <MudNavLink Href="/supplier/capabilities" Icon="@Icons.Material.Filled.Build">Production Capabilities</MudNavLink>
-                <MudNavLink Href="/supplier/matches" Icon="@Icons.Material.Filled.Handshake">Project Matches</MudNavLink>
-                <MudNavLink Href="/clients" Icon="@Icons.Material.Filled.People">Browse Clients</MudNavLink>
-            </AuthorizeView>
-
-            <MudNavLink Href="/notifications" Icon="@Icons.Material.Filled.Notifications">Notifications</MudNavLink>
-            <MudNavLink Href="/payments" Icon="@Icons.Material.Filled.Payment">Billing</MudNavLink>
-
-            @* Admin only *@
+            @* ── Navigation Admin ───────────────────────────────── *@
             <AuthorizeView Roles="Admin" Context="adminCtx">
-                <MudNavGroup Title="Administration" Icon="@Icons.Material.Filled.AdminPanelSettings">
-                    <MudNavLink Href="/admin/users">Users</MudNavLink>
-                    <MudNavLink Href="/admin/matching">Run Matching</MudNavLink>
+                <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.SpaceDashboard" Match="NavLinkMatch.All">
+                    Tableau de bord
+                </MudNavLink>
+                <MudDivider Class="my-2" />
+                <MudNavGroup Title="Utilisateurs" Icon="@Icons.Material.Filled.People" Expanded="true">
+                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Tous les comptes</MudNavLink>
+                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Clients</MudNavLink>
+                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Fournisseurs</MudNavLink>
+                </MudNavGroup>
+                <MudNavGroup Title="Production" Icon="@Icons.Material.Filled.Build" Expanded="false">
+                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Capacités</MudNavLink>
+                </MudNavGroup>
+                <MudNavGroup Title="Monétisation" Icon="@Icons.Material.Filled.CreditCard" Expanded="false">
+                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Abonnements & MRR</MudNavLink>
+                </MudNavGroup>
+                <MudNavGroup Title="IA & Matching" Icon="@Icons.Material.Filled.AutoAwesome" Expanded="false">
+                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Matching global</MudNavLink>
                 </MudNavGroup>
             </AuthorizeView>
+
+            @* ── Navigation Client / Fournisseur ────────────────── *@
+            <AuthorizeView Roles="Client,Supplier" Context="userCtx">
+                <MudNavLink Href="/dashboard" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+
+                <AuthorizeView Roles="Client" Context="clientCtx">
+                    <MudNavGroup Title="Mes projets" Icon="@Icons.Material.Filled.Engineering" Expanded="true">
+                        <MudNavLink Href="/projects">Tous les projets</MudNavLink>
+                        <MudNavLink Href="/projects/create">Nouveau projet</MudNavLink>
+                    </MudNavGroup>
+                    <MudNavLink Href="/suppliers" Icon="@Icons.Material.Filled.Factory">Trouver des fournisseurs</MudNavLink>
+                    <MudNavLink Href="/matches" Icon="@Icons.Material.Filled.Handshake">Mes matchs</MudNavLink>
+                </AuthorizeView>
+
+                <AuthorizeView Roles="Supplier" Context="supplierCtx">
+                    <MudNavLink Href="/supplier/profile" Icon="@Icons.Material.Filled.Business">Mon profil</MudNavLink>
+                    <MudNavLink Href="/supplier/capabilities" Icon="@Icons.Material.Filled.Build">Capacités de production</MudNavLink>
+                    <MudNavLink Href="/supplier/matches" Icon="@Icons.Material.Filled.Handshake">Matchs projets</MudNavLink>
+                    <MudNavLink Href="/clients" Icon="@Icons.Material.Filled.People">Parcourir les clients</MudNavLink>
+                </AuthorizeView>
+
+                <MudNavLink Href="/notifications" Icon="@Icons.Material.Filled.Notifications">Notifications</MudNavLink>
+                <MudNavLink Href="/payments" Icon="@Icons.Material.Filled.Payment">Facturation</MudNavLink>
+            </AuthorizeView>
+
         </Authorized>
         <NotAuthorized>
-            <MudNavLink Href="/" Icon="@Icons.Material.Filled.Home">Home</MudNavLink>
-            <MudNavLink Href="/auth/login" Icon="@Icons.Material.Filled.Login">Sign In</MudNavLink>
-            <MudNavLink Href="/auth/register" Icon="@Icons.Material.Filled.PersonAdd">Register</MudNavLink>
+            <MudNavLink Href="/" Icon="@Icons.Material.Filled.Home">Accueil</MudNavLink>
+            <MudNavLink Href="/auth/login" Icon="@Icons.Material.Filled.Login">Connexion</MudNavLink>
+            <MudNavLink Href="/auth/register" Icon="@Icons.Material.Filled.PersonAdd">Inscription</MudNavLink>
         </NotAuthorized>
     </AuthorizeView>
 </MudNavMenu>

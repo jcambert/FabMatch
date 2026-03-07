@@ -31,22 +31,15 @@ else
         </div>
     </MudStack>
 
-    @{
-        var publicProjects = _client.Projects
-            .Where(p => p.IsPublic && p.Status == ProjectStatus.Active)
-            .OrderByDescending(p => p.CreatedAt)
-            .ToList();
-    }
-
-    @if (publicProjects.Count == 0)
+    @if (_publicProjects.Count == 0)
     {
         <MudAlert Severity="Severity.Info">This client has no public active projects at the moment.</MudAlert>
     }
     else
     {
-        <MudText Typo="Typo.h6" Class="mb-3">Active Public Projects (@publicProjects.Count)</MudText>
+        <MudText Typo="Typo.h6" Class="mb-3">Active Public Projects (@_publicProjects.Count)</MudText>
         <MudGrid>
-            @foreach (var proj in publicProjects)
+            @foreach (var proj in _publicProjects)
             {
                 <MudItem xs="12" md="6">
                     <MudCard Elevation="2">
@@ -111,10 +104,16 @@ else
 
     private bool _loading = true;
     private Client? _client;
+    private List<Project> _publicProjects = [];
 
     protected override async Task OnInitializedAsync()
     {
         _client = await Uow.Clients.GetWithProjectsAsync(ClientId);
+        if (_client is not null)
+            _publicProjects = _client.Projects
+                .Where(p => p.IsPublic && p.Status == ProjectStatus.Active)
+                .OrderByDescending(p => p.CreatedAt)
+                .ToList();
         _loading = false;
     }
 }

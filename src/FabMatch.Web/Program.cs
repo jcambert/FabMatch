@@ -183,7 +183,7 @@ static async Task SeedAdminUserAsync(IServiceScope scope, ILogger<Program> logge
     var config = scope.ServiceProvider.GetRequiredService<IConfiguration>();
     var email    = config["AdminSeed:Email"];
     var password = config["AdminSeed:Password"];
-    var fullName = config["AdminSeed:FullName"] ?? "Admin";
+    var fullName = config["AdminSeed:FullName"] ?? "FabMatch Admin";
 
     if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password))
         return;
@@ -193,11 +193,13 @@ static async Task SeedAdminUserAsync(IServiceScope scope, ILogger<Program> logge
     if (await userManager.FindByEmailAsync(email) is not null)
         return; // already exists
 
+    var parts = fullName.Split(' ', 2);
     var admin = new ApplicationUser
     {
-        UserName = email,
-        Email    = email,
-        FullName = fullName,
+        UserName       = email,
+        Email          = email,
+        FirstName      = parts[0],
+        LastName       = parts.Length > 1 ? parts[1] : string.Empty,
         EmailConfirmed = true
     };
 

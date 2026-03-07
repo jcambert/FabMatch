@@ -1,0 +1,229 @@
+@page "/matches"
+@attribute [Authorize(Roles = "Client")]
+@using FabMatch.Application.Features.Matches.Commands.UpdateMatchStatus
+@using FabMatch.Domain.Entities
+@using FabMatch.Domain.Enums
+@using FabMatch.Domain.Interfaces
+@using Microsoft.AspNetCore.Identity
+@inject IUnitOfWork Uow
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+<PageTitle>My Matches – FabMatch</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">My Matches</MudText>
+    <MudStack Row="true" Spacing="1">
+        @foreach (var f in _filters)
+        {
+            <MudChip T="string" Size="Size.Small" Color="@(f == _activeFilter ? Color.Primary : Color.Default)"
+                     OnClick="() => SetFilter(f)">
+                @f
+            </MudChip>
+        }
+    </MudStack>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_rows.Count == 0)
+{
+    <MudAlert Severity="Severity.Info">
+        No matches found. Publish a project and run AI matching to get supplier proposals.
+        <MudButton Href="/projects" Size="Size.Small" Color="Color.Primary">View My Projects</MudButton>
+    </MudAlert>
+}
+else
+{
+    <MudTable Items="@FilteredRows" Hover="true" Dense="false" Elevation="2"
+              GroupBy="_groupDef" GroupHeaderStyle="background-color: var(--mud-palette-background-grey);">
+        <ColGroup>
+            <col style="width: 30%" />
+            <col style="width: 22%" />
+            <col style="width: 12%" />
+            <col style="width: 18%" />
+            <col style="width: 18%" />
+        </ColGroup>
+        <HeaderContent>
+            <MudTh>Supplier</MudTh>
+            <MudTh>Project</MudTh>
+            <MudTh>Affinity</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <GroupHeaderTemplate Context="grp">
+            <MudTh colspan="5" Class="py-1 px-3">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+                    <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Small" />
+                    <MudLink Href="@($"/projects/{grp.Key}")">
+                        <strong>@grp.Items.First().ProjectTitle</strong>
+                    </MudLink>
+                    <MudText Typo="Typo.caption">(@grp.Items.Count() match(es))</MudText>
+                </MudStack>
+            </MudTh>
+        </GroupHeaderTemplate>
+        <RowTemplate Context="row">
+            <MudTd>
+                <MudStack Spacing="0">
+                    <MudText Typo="Typo.body1">@row.SupplierName</MudText>
+                    @if (!string.IsNullOrEmpty(row.Rationale))
+                    {
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary fst-italic">
+                            @(row.Rationale.Length > 80 ? row.Rationale[..80] + "…" : row.Rationale)
+                        </MudText>
+                    }
+                </MudStack>
+            </MudTd>
+            <MudTd>
+                <MudLink Href="@($"/projects/{row.ProjectId}")">@row.ProjectTitle</MudLink>
+            </MudTd>
+            <MudTd>
+                <MudStack Spacing="0">
+                    <MudProgressLinear Value="@((int)(row.Score * 100))"
+                                       Color="@ScoreColor(row.Score)"
+                                       Rounded="true" Size="Size.Medium" Style="min-width:80px" />
+                    <MudText Typo="Typo.caption">@($"{row.Score * 100:F0}%")</MudText>
+                </MudStack>
+            </MudTd>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small" Color="@StatusColor(row.Status)">
+                    @StatusLabel(row.Status)
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                <MudStack Row="true" Spacing="1">
+                    @if (row.Status == MatchStatus.Proposed)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success"
+                                   OnClick="() => Act(row.MatchId, MatchStatus.AcceptedByClient)"
+                                   Disabled="_working">Accept</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                                   OnClick="() => Act(row.MatchId, MatchStatus.RejectedByClient)"
+                                   Disabled="_working">Reject</MudButton>
+                    }
+                    @if (row.Status == MatchStatus.AcceptedBySupplier)
+                    {
+                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="() => Act(row.MatchId, MatchStatus.Finalised)"
+                                   Disabled="_working">Finalise</MudButton>
+                    }
+                    <MudIconButton Icon="@Icons.Material.Filled.OpenInNew" Size="Size.Small"
+                                   Href="@($"/suppliers/{row.SupplierId}")"
+                                   Title="View supplier" />
+                </MudStack>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _working;
+    private Guid _userId;
+    private List<MatchRow> _rows = [];
+    private string _activeFilter = "All";
+    private static readonly string[] _filters = ["All", "Proposed", "Accepted", "Finalised", "Rejected"];
+
+    private readonly TableGroupDefinition<MatchRow> _groupDef = new()
+    {
+        GroupName = "Project",
+        Indentation = false,
+        Expandable = true,
+        IsInitiallyExpanded = true,
+        Selector = r => r.ProjectId
+    };
+
+    private IEnumerable<MatchRow> FilteredRows => _activeFilter switch
+    {
+        "Proposed"  => _rows.Where(r => r.Status == MatchStatus.Proposed),
+        "Accepted"  => _rows.Where(r => r.Status is MatchStatus.AcceptedByClient or MatchStatus.AcceptedBySupplier),
+        "Finalised" => _rows.Where(r => r.Status == MatchStatus.Finalised),
+        "Rejected"  => _rows.Where(r => r.Status is MatchStatus.RejectedByClient or MatchStatus.RejectedBySupplier),
+        _           => _rows
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user is null) { _loading = false; return; }
+        _userId = user.Id;
+
+        var client = await Uow.Clients.GetByUserIdAsync(user.Id);
+        if (client is not null)
+            await LoadAsync(client.Id);
+
+        _loading = false;
+    }
+
+    private async Task LoadAsync(Guid clientId)
+    {
+        var projects = await Uow.Projects.GetByClientIdAsync(clientId);
+        var rows = new List<MatchRow>();
+        foreach (var proj in projects)
+        {
+            var matches = await Uow.Matches.GetByProjectIdAsync(proj.Id);
+            rows.AddRange(matches.Select(m => new MatchRow(
+                m.Id, m.SupplierId,
+                m.Supplier?.CompanyName ?? m.SupplierId.ToString("N")[..8],
+                proj.Id, proj.Title,
+                m.AffinityScore, m.Status, m.MatchRationale)));
+        }
+        _rows = rows.OrderByDescending(r => r.Score).ToList();
+    }
+
+    private async Task Act(Guid matchId, MatchStatus newStatus)
+    {
+        _working = true;
+        try
+        {
+            await Mediator.Send(new UpdateMatchStatusCommand(matchId, newStatus, _userId));
+            var client = await Uow.Clients.GetByUserIdAsync(_userId);
+            if (client is not null) await LoadAsync(client.Id);
+            Snackbar.Add("Match updated.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _working = false; }
+    }
+
+    private void SetFilter(string f) => _activeFilter = f;
+
+    private static string StatusLabel(MatchStatus s) => s switch
+    {
+        MatchStatus.Proposed           => "Proposed",
+        MatchStatus.AcceptedByClient   => "Awaiting supplier",
+        MatchStatus.RejectedByClient   => "Rejected by you",
+        MatchStatus.AcceptedBySupplier => "Mutual acceptance ✓",
+        MatchStatus.RejectedBySupplier => "Declined by supplier",
+        MatchStatus.Finalised          => "Finalised",
+        _                              => s.ToString()
+    };
+
+    private static Color StatusColor(MatchStatus s) => s switch
+    {
+        MatchStatus.AcceptedByClient   => Color.Info,
+        MatchStatus.AcceptedBySupplier => Color.Success,
+        MatchStatus.Finalised          => Color.Primary,
+        MatchStatus.RejectedByClient or MatchStatus.RejectedBySupplier => Color.Error,
+        _                              => Color.Default
+    };
+
+    private static Color ScoreColor(double score) => score switch
+    {
+        >= 0.8 => Color.Success,
+        >= 0.6 => Color.Warning,
+        _      => Color.Error
+    };
+
+    private sealed record MatchRow(
+        Guid MatchId, Guid SupplierId, string SupplierName,
+        Guid ProjectId, string ProjectTitle,
+        double Score, MatchStatus Status, string? Rationale);
+}

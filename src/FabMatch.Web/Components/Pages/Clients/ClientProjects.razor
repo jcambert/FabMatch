@@ -1,0 +1,120 @@
+@page "/clients/{ClientId:guid}/projects"
+@attribute [Authorize(Roles = "Supplier")]
+@using FabMatch.Domain.Entities
+@using FabMatch.Domain.Enums
+@using FabMatch.Domain.Interfaces
+@inject IUnitOfWork Uow
+@inject NavigationManager Nav
+
+<PageTitle>Client Projects – FabMatch</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_client is null)
+{
+    <MudAlert Severity="Severity.Error">Client not found.</MudAlert>
+}
+else
+{
+    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Class="mb-4">
+        <MudIconButton Icon="@Icons.Material.Filled.ArrowBack"
+                       OnClick='() => Nav.NavigateTo("/clients")' Size="Size.Small" />
+        <MudAvatar Color="Color.Primary">@_client.CompanyName.FirstOrDefault()</MudAvatar>
+        <div>
+            <MudText Typo="Typo.h5">@_client.CompanyName</MudText>
+            @if (!string.IsNullOrEmpty(_client.Industry))
+            {
+                <MudText Typo="Typo.caption" Color="Color.Secondary">@_client.Industry</MudText>
+            }
+        </div>
+    </MudStack>
+
+    @{
+        var publicProjects = _client.Projects
+            .Where(p => p.IsPublic && p.Status == ProjectStatus.Active)
+            .OrderByDescending(p => p.CreatedAt)
+            .ToList();
+    }
+
+    @if (publicProjects.Count == 0)
+    {
+        <MudAlert Severity="Severity.Info">This client has no public active projects at the moment.</MudAlert>
+    }
+    else
+    {
+        <MudText Typo="Typo.h6" Class="mb-3">Active Public Projects (@publicProjects.Count)</MudText>
+        <MudGrid>
+            @foreach (var proj in publicProjects)
+            {
+                <MudItem xs="12" md="6">
+                    <MudCard Elevation="2">
+                        <MudCardHeader>
+                            <CardHeaderContent>
+                                <MudText Typo="Typo.h6">@proj.Title</MudText>
+                            </CardHeaderContent>
+                            <CardHeaderActions>
+                                @if (proj.DeliveryDate.HasValue)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.CalendarToday">
+                                        @proj.DeliveryDate.Value.ToString("dd/MM/yy")
+                                    </MudChip>
+                                }
+                            </CardHeaderActions>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudText Typo="Typo.body2" Class="mb-2">
+                                @(proj.Description.Length > 120
+                                    ? proj.Description[..120] + "…"
+                                    : proj.Description)
+                            </MudText>
+                            @if (proj.RequiredProcesses.Count > 0)
+                            {
+                                <div class="mb-1">
+                                    @foreach (var p in proj.RequiredProcesses.Take(4))
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Class="mr-1 mb-1">@p</MudChip>
+                                    }
+                                </div>
+                            }
+                            @if (proj.Materials.Count > 0)
+                            {
+                                <div>
+                                    @foreach (var m in proj.Materials.Take(4))
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="mr-1 mb-1">@m</MudChip>
+                                    }
+                                </div>
+                            }
+                            @if (proj.BudgetEstimate.HasValue)
+                            {
+                                <MudText Typo="Typo.caption" Class="mt-1">
+                                    Budget: @proj.BudgetEstimate.Value.ToString("N0") @proj.BudgetCurrency
+                                </MudText>
+                            }
+                        </MudCardContent>
+                        <MudCardContent>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                @proj.Plans.Count plan(s) · Published @proj.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")
+                            </MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+}
+
+@code {
+    [Parameter] public Guid ClientId { get; set; }
+
+    private bool _loading = true;
+    private Client? _client;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _client = await Uow.Clients.GetWithProjectsAsync(ClientId);
+        _loading = false;
+    }
+}

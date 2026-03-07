@@ -1,0 +1,241 @@
+@page "/supplier/matches"
+@attribute [Authorize(Roles = "Supplier")]
+@using FabMatch.Application.Features.Matches.Commands.UpdateMatchStatus
+@using FabMatch.Domain.Entities
+@using FabMatch.Domain.Enums
+@using FabMatch.Domain.Interfaces
+@using Microsoft.AspNetCore.Identity
+@inject IUnitOfWork Uow
+@inject IMediator Mediator
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+
+<PageTitle>Project Matches – FabMatch</PageTitle>
+
+<MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h4">Project Matches</MudText>
+    <MudStack Row="true" Spacing="1">
+        @foreach (var f in _filters)
+        {
+            <MudChip T="string" Size="Size.Small"
+                     Color="@(f == _activeFilter ? Color.Primary : Color.Default)"
+                     OnClick="() => _activeFilter = f">
+                @f
+            </MudChip>
+        }
+    </MudStack>
+</MudStack>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (!_matches.Any())
+{
+    <MudAlert Severity="Severity.Info">
+        No project matches yet. Make sure your profile is complete so the AI matching engine
+        can propose you to relevant clients.
+        <MudButton Href="/supplier/profile" Size="Size.Small" Color="Color.Primary">Complete Profile</MudButton>
+    </MudAlert>
+}
+else
+{
+    @if (ActionRequired > 0)
+    {
+        <MudAlert Severity="Severity.Warning" Class="mb-4" Icon="@Icons.Material.Filled.NotificationImportant">
+            <strong>@ActionRequired match(es)</strong> require your response — a client has accepted and is waiting for your confirmation.
+        </MudAlert>
+    }
+
+    <MudGrid>
+        @foreach (var m in Filtered)
+        {
+            <MudItem xs="12" md="6" lg="4">
+                <MudCard Elevation="2" Class="h-100"
+                         Style="@(m.Status == MatchStatus.AcceptedByClient ? "border: 2px solid var(--mud-palette-warning);" : "")">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Start">
+                                <div>
+                                    <MudText Typo="Typo.h6">@m.Project?.Title</MudText>
+                                    <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                        @m.Project?.Client?.CompanyName
+                                        @if (!string.IsNullOrEmpty(m.Project?.Client?.Industry))
+                                        {
+                                            <span> · @m.Project.Client.Industry</span>
+                                        }
+                                    </MudText>
+                                </div>
+                                <MudChip T="string" Size="Size.Small" Color="@StatusColor(m.Status)">
+                                    @StatusLabel(m.Status)
+                                </MudChip>
+                            </MudStack>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <!-- Affinity score -->
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">AI Affinity Score</MudText>
+                        <MudProgressLinear Value="@((int)(m.AffinityScore * 100))"
+                                           Color="@ScoreColor(m.AffinityScore)"
+                                           Rounded="true" Size="Size.Large" Class="mb-1" />
+                        <MudText Typo="Typo.body2" Class="mb-2">@($"{m.AffinityScore * 100:F0}%")</MudText>
+
+                        @if (!string.IsNullOrEmpty(m.MatchRationale))
+                        {
+                            <MudText Typo="Typo.body2" Class="fst-italic mud-text-secondary">
+                                "@(m.MatchRationale.Length > 120 ? m.MatchRationale[..120] + "…" : m.MatchRationale)"
+                            </MudText>
+                        }
+
+                        <!-- Project details -->
+                        @if (m.Project is not null)
+                        {
+                            <MudDivider Class="my-2" />
+                            <MudStack Row="true" Spacing="1" Class="flex-wrap">
+                                @if (m.Project.DeliveryDate.HasValue)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.CalendarToday">
+                                        @m.Project.DeliveryDate.Value.ToString("dd/MM/yy")
+                                    </MudChip>
+                                }
+                                @if (m.Project.BudgetEstimate.HasValue)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Icon="@Icons.Material.Filled.EuroSymbol">
+                                        @m.Project.BudgetEstimate.Value.ToString("N0") @m.Project.BudgetCurrency
+                                    </MudChip>
+                                }
+                                @foreach (var proc in m.Project.RequiredProcesses.Take(3))
+                                {
+                                    <MudChip T="string" Size="Size.Small">@proc</MudChip>
+                                }
+                            </MudStack>
+                        }
+
+                        @if (m.SupplierRespondedAt.HasValue)
+                        {
+                            <MudText Typo="Typo.caption" Class="mt-2">
+                                You responded: @m.SupplierRespondedAt.Value.ToLocalTime().ToString("g")
+                            </MudText>
+                        }
+                    </MudCardContent>
+                    <MudCardActions>
+                        @if (m.Status == MatchStatus.AcceptedByClient)
+                        {
+                            <MudButton Color="Color.Success" Variant="Variant.Filled" Size="Size.Small"
+                                       OnClick="() => Act(m.Id, MatchStatus.AcceptedBySupplier)"
+                                       Disabled="_working">
+                                Accept Project
+                            </MudButton>
+                            <MudButton Color="Color.Error" Variant="Variant.Outlined" Size="Size.Small"
+                                       OnClick="() => Act(m.Id, MatchStatus.RejectedBySupplier)"
+                                       Disabled="_working">
+                                Decline
+                            </MudButton>
+                        }
+                        <MudSpacer />
+                        @if (m.Project is not null)
+                        {
+                            <MudChip T="string" Size="Size.Small" Color="Color.Info"
+                                     Icon="@Icons.Material.Filled.CalendarToday">
+                                @m.CreatedAt.ToLocalTime().ToString("dd/MM/yy")
+                            </MudChip>
+                        }
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _working;
+    private Guid _userId;
+    private Guid _supplierId;
+    private List<Match> _matches = [];
+    private string _activeFilter = "All";
+    private static readonly string[] _filters = ["All", "Action Required", "Proposed", "Accepted", "Finalised", "Rejected"];
+
+    private int ActionRequired => _matches.Count(m => m.Status == MatchStatus.AcceptedByClient);
+
+    private IEnumerable<Match> Filtered => _activeFilter switch
+    {
+        "Action Required" => _matches.Where(m => m.Status == MatchStatus.AcceptedByClient),
+        "Proposed"        => _matches.Where(m => m.Status == MatchStatus.Proposed),
+        "Accepted"        => _matches.Where(m => m.Status is MatchStatus.AcceptedBySupplier),
+        "Finalised"       => _matches.Where(m => m.Status == MatchStatus.Finalised),
+        "Rejected"        => _matches.Where(m => m.Status is MatchStatus.RejectedByClient or MatchStatus.RejectedBySupplier),
+        _                 => _matches
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthState.GetAuthenticationStateAsync();
+        var user = await UserManager.GetUserAsync(authState.User);
+        if (user is null) { _loading = false; return; }
+        _userId = user.Id;
+
+        var supplier = await Uow.Suppliers.GetByUserIdAsync(user.Id);
+        if (supplier is not null)
+        {
+            _supplierId = supplier.Id;
+            await LoadAsync();
+        }
+
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        _matches = (await Uow.Matches.GetBySupplierIdAsync(_supplierId))
+            .OrderByDescending(m => m.Status == MatchStatus.AcceptedByClient) // action-required first
+            .ThenByDescending(m => m.AffinityScore)
+            .ToList();
+    }
+
+    private async Task Act(Guid matchId, MatchStatus newStatus)
+    {
+        _working = true;
+        try
+        {
+            await Mediator.Send(new UpdateMatchStatusCommand(matchId, newStatus, _userId));
+            await LoadAsync();
+            Snackbar.Add(newStatus == MatchStatus.AcceptedBySupplier
+                ? "Project accepted! The client will be notified."
+                : "Match declined.", Severity.Success);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _working = false; }
+    }
+
+    private static string StatusLabel(MatchStatus s) => s switch
+    {
+        MatchStatus.Proposed           => "Proposed",
+        MatchStatus.AcceptedByClient   => "⚡ Action required",
+        MatchStatus.RejectedByClient   => "Declined by client",
+        MatchStatus.AcceptedBySupplier => "Accepted ✓",
+        MatchStatus.RejectedBySupplier => "You declined",
+        MatchStatus.Finalised          => "Finalised",
+        _                              => s.ToString()
+    };
+
+    private static Color StatusColor(MatchStatus s) => s switch
+    {
+        MatchStatus.AcceptedByClient   => Color.Warning,
+        MatchStatus.AcceptedBySupplier => Color.Success,
+        MatchStatus.Finalised          => Color.Primary,
+        MatchStatus.RejectedByClient or MatchStatus.RejectedBySupplier => Color.Error,
+        _                              => Color.Default
+    };
+
+    private static Color ScoreColor(double score) => score switch
+    {
+        >= 0.8 => Color.Success,
+        >= 0.6 => Color.Warning,
+        _      => Color.Error
+    };
+}

@@ -4,11 +4,15 @@
 @using FabMatch.Application.Features.Admin.Queries.GetAllClients
 @using FabMatch.Application.Features.Admin.Queries.GetAllSuppliers
 @using FabMatch.Application.Features.Admin.Queries.GetPlatformStats
+@using FabMatch.Application.Features.Admin.Queries.GetAuditLogs
+@using FabMatch.Application.Features.Admin.Queries.GetSubscriptionPlans
+@using FabMatch.Application.Features.Admin.Commands.UpdateSubscriptionPlan
 @using FabMatch.Application.Features.Admin.Commands.TriggerGlobalMatching
 @using FabMatch.Application.Features.Admin.Commands.SetUserLockout
 @using FabMatch.Application.Features.Admin.Commands.UpdateUserTier
 @using FabMatch.Application.Features.Suppliers.Commands.DeleteCapability
 @using FabMatch.Application.Common.Interfaces
+@using FabMatch.Application.Common.Models
 @using FabMatch.Domain.Enums
 @using FabMatch.Domain.Interfaces
 @inject IMediator Mediator
@@ -21,6 +25,7 @@
 <MudText Typo="Typo.h4" Class="mb-4">Administration Panel</MudText>
 
 <MudTabs Elevation="2" Rounded="true" ApplyEffectsToContainer="true"
+         ActivePanelIndex="_activeTab"
          ActivePanelIndexChanged="OnTabChangedAsync">
 
     <!-- ── Tab 0 : Tableau de bord ──────────────────────────────────── -->
@@ -347,65 +352,74 @@
 
     <!-- ── Tab 5 : Abonnements ──────────────────────────────────────── -->
     <MudTabPanel Text="Abonnements" Icon="@Icons.Material.Filled.CreditCard">
-        @if (_loadingStats)
+        @if (_loadingStats || _loadingPlans)
         {
             <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="ma-4" />
         }
-        else if (_platformStats is not null)
+        else
         {
-            <MudCard Class="ma-4" Elevation="3">
-                <MudCardContent>
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
-                        <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Success" Size="Size.Large" />
-                        <div>
-                            <MudText Typo="Typo.overline">Revenu Mensuel Récurrent (MRR)</MudText>
-                            <MudText Typo="Typo.h2" Color="Color.Success">@_platformStats.EstimatedMRR.ToString("C0")</MudText>
-                        </div>
-                    </MudStack>
-                </MudCardContent>
-            </MudCard>
+            @* MRR *@
+            @if (_platformStats is not null)
+            {
+                <MudCard Class="ma-4" Elevation="3">
+                    <MudCardContent>
+                        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="3">
+                            <MudIcon Icon="@Icons.Material.Filled.TrendingUp" Color="Color.Success" Size="Size.Large" />
+                            <div>
+                                <MudText Typo="Typo.overline">Revenu Mensuel Récurrent (MRR)</MudText>
+                                <MudText Typo="Typo.h2" Color="Color.Success">@_platformStats.EstimatedMRR.ToString("C0")</MudText>
+                            </div>
+                        </MudStack>
+                    </MudCardContent>
+                </MudCard>
+            }
 
+            @* Plan cards — editable *@
+            <MudText Typo="Typo.h6" Class="mx-4 mb-3">Gestion des plans</MudText>
             <MudGrid Class="mx-4 mb-4">
-                @foreach (var plan in PlanDetails())
+                @foreach (var edit in _planEdits.Values.OrderBy(e => e.Tier))
                 {
+                    var userCount = UserCountForTier(edit.Tier);
                     <MudItem xs="12" sm="6" md="3">
                         <MudCard Elevation="2">
                             <MudCardHeader>
                                 <CardHeaderContent>
-                                    <MudText Typo="Typo.h6">@plan.Name</MudText>
-                                    <MudText Typo="Typo.caption">@plan.Price</MudText>
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                        <MudChip T="string" Size="Size.Small" Color="@TierColor(edit.Tier)">@edit.Tier</MudChip>
+                                        <MudText Typo="Typo.caption">@userCount utilisateur(s)</MudText>
+                                    </MudStack>
                                 </CardHeaderContent>
                             </MudCardHeader>
                             <MudCardContent>
-                                <MudText Typo="Typo.h4">@plan.Count <MudText Typo="Typo.caption" Inline="true">utilisateurs</MudText></MudText>
-                                <MudDivider Class="my-2" />
-                                @foreach (var feature in plan.Features)
-                                {
-                                    <MudText Typo="Typo.body2">✓ @feature</MudText>
-                                }
+                                <MudNumericField T="decimal" @bind-Value="edit.MonthlyPrice"
+                                                 Label="Prix mensuel (€)" Min="0" Format="F2"
+                                                 Margin="Margin.Dense" Class="mb-2" />
+                                <MudNumericField T="int" @bind-Value="edit.MaxProjects"
+                                                 Label="Projets max (-1 = illimité)" Min="-1"
+                                                 Margin="Margin.Dense" Class="mb-2" />
+                                <MudNumericField T="int" @bind-Value="edit.MaxAnalysesPerMonth"
+                                                 Label="Analyses/mois (-1 = illimité)" Min="-1"
+                                                 Margin="Margin.Dense" Class="mb-2" />
+                                <MudCheckBox T="bool" @bind-Value="edit.UnlimitedMatching"
+                                             Label="Matching illimité" Dense="true" Class="mb-1" />
+                                <MudCheckBox T="bool" @bind-Value="edit.PrioritySupport"
+                                             Label="Support prioritaire" Dense="true" Class="mb-2" />
+                                <MudTextField T="string" @bind-Value="edit.FeaturesText"
+                                              Label="Fonctionnalités (une par ligne)"
+                                              Lines="4" Margin="Margin.Dense" Class="mb-2" />
                             </MudCardContent>
+                            <MudCardActions>
+                                <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                           Size="Size.Small" FullWidth="true"
+                                           OnClick="() => SavePlanAsync(edit)"
+                                           Disabled="_savingPlan">
+                                    Enregistrer
+                                </MudButton>
+                            </MudCardActions>
                         </MudCard>
                     </MudItem>
                 }
             </MudGrid>
-
-            <MudText Typo="Typo.h6" Class="mx-4 mb-2">Limites par plan</MudText>
-            <MudTable Items="@PlanLimits()" Dense="true" Class="mx-4 mb-4" Elevation="1">
-                <HeaderContent>
-                    <MudTh>Plan</MudTh>
-                    <MudTh>Projets max</MudTh>
-                    <MudTh>Analyses IA / mois</MudTh>
-                    <MudTh>Matching illimité</MudTh>
-                    <MudTh>Support prioritaire</MudTh>
-                </HeaderContent>
-                <RowTemplate Context="lim">
-                    <MudTd><MudChip T="string" Size="Size.Small" Color="@TierColor(lim.Tier)">@lim.Tier</MudChip></MudTd>
-                    <MudTd>@(lim.MaxProjects < 0 ? "∞" : lim.MaxProjects.ToString())</MudTd>
-                    <MudTd>@(lim.MaxAnalyses < 0 ? "∞" : lim.MaxAnalyses.ToString())</MudTd>
-                    <MudTd>@(lim.UnlimitedMatching ? "✓" : "–")</MudTd>
-                    <MudTd>@(lim.PrioritySupport ? "✓" : "–")</MudTd>
-                </RowTemplate>
-            </MudTable>
         }
     </MudTabPanel>
 
@@ -460,9 +474,62 @@
         </MudCard>
     </MudTabPanel>
 
+
+    <!-- ── Tab 7 : Audit ─────────────────────────────────────────────── -->
+    <MudTabPanel Text="Audit" Icon="@Icons.Material.Filled.History">
+        <MudStack Row="true" Class="pa-4 pb-0" AlignItems="AlignItems.Center" Spacing="2">
+            <MudSelect T="string?" Value="_auditActionFilter"
+                       ValueChanged="OnAuditFilterChangedAsync"
+                       Label="Filtrer par action"
+                       Clearable="true"
+                       Style="max-width:260px">
+                <MudSelectItem T="string?" Value="@((string?)null)">Toutes</MudSelectItem>
+                <MudSelectItem T="string?" Value="@("UserLocked")">UserLocked</MudSelectItem>
+                <MudSelectItem T="string?" Value="@("UserUnlocked")">UserUnlocked</MudSelectItem>
+                <MudSelectItem T="string?" Value="@("TierChanged")">TierChanged</MudSelectItem>
+                <MudSelectItem T="string?" Value="@("CapabilityDeleted")">CapabilityDeleted</MudSelectItem>
+            </MudSelect>
+            <MudSpacer />
+            <MudText Typo="Typo.caption">@_auditLogs.Count entrée(s)</MudText>
+        </MudStack>
+
+        @if (_loadingAudit)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mx-4" />
+        }
+
+        <MudTable Items="_auditLogs" Dense="true" Hover="true" Class="ma-4" Elevation="0">
+            <HeaderContent>
+                <MudTh>Date</MudTh>
+                <MudTh>Admin</MudTh>
+                <MudTh>Action</MudTh>
+                <MudTh>Type cible</MudTh>
+                <MudTh>Cible</MudTh>
+            </HeaderContent>
+            <RowTemplate Context="log">
+                <MudTd>@log.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm:ss")</MudTd>
+                <MudTd>@log.AdminName</MudTd>
+                <MudTd>
+                    <MudChip T="string" Size="Size.Small" Color="@AuditActionColor(log.Action)">@log.Action</MudChip>
+                </MudTd>
+                <MudTd>@log.TargetType</MudTd>
+                <MudTd>@log.TargetLabel</MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Class="pa-4" Typo="Typo.body2">Aucune entrée dans le journal d'audit.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudTabPanel>
+
 </MudTabs>
 
 @code {
+    // ── Tab navigation ────────────────────────────────────────────────
+    [SupplyParameterFromQuery(Name = "tab")]
+    public int Tab { get; set; }
+
+    private int _activeTab;
+
     // ── Users ─────────────────────────────────────────────────────────
     private string _userSearch = "";
     private bool _loadingUsers = true;
@@ -500,14 +567,35 @@
     private decimal _threshold = 0.55m;
     private TriggerGlobalMatchingResult? _matchResult;
 
+    // ── Plans ─────────────────────────────────────────────────────────
+    private bool _loadingPlans;
+    private bool _savingPlan;
+    private Dictionary<SubscriptionTier, PlanEditState> _planEdits = [];
+
+    // ── Audit ─────────────────────────────────────────────────────────
+    private string? _auditActionFilter;
+    private bool _loadingAudit;
+    private List<AuditLogDto> _auditLogs = [];
+
     protected override async Task OnInitializedAsync()
     {
+        _activeTab = Tab;
         await LoadStatsAsync();
         await LoadUsersAsync();
     }
 
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_activeTab != Tab)
+        {
+            _activeTab = Tab;
+            await OnTabChangedAsync(_activeTab);
+        }
+    }
+
     private async Task OnTabChangedAsync(int index)
     {
+        _activeTab = index;
         switch (index)
         {
             case 0 when _platformStats is null:
@@ -522,8 +610,12 @@
             case 4 when _capabilities.Count == 0:
                 await LoadCapabilitiesAsync();
                 break;
-            case 5 when _platformStats is null:
+            case 5 when _planEdits.Count == 0:
                 await LoadStatsAsync();
+                await LoadPlansAsync();
+                break;
+            case 7 when _auditLogs.Count == 0:
+                await LoadAuditLogsAsync();
                 break;
         }
     }
@@ -587,6 +679,67 @@
             _platformStats = await Mediator.Send(new GetPlatformStatsQuery());
         }
         finally { _loadingStats = false; }
+    }
+
+    private async Task LoadPlansAsync()
+    {
+        _loadingPlans = true;
+        try
+        {
+            var plans = await Mediator.Send(new GetSubscriptionPlansQuery());
+            _planEdits = plans.ToDictionary(
+                p => p.Tier,
+                p => new PlanEditState(p));
+        }
+        finally { _loadingPlans = false; }
+    }
+
+    private async Task SavePlanAsync(PlanEditState edit)
+    {
+        _savingPlan = true;
+        try
+        {
+            var features = edit.FeaturesText
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+            await Mediator.Send(new UpdateSubscriptionPlanCommand(
+                edit.Tier,
+                edit.MonthlyPrice,
+                edit.MaxProjects,
+                edit.MaxAnalysesPerMonth,
+                edit.UnlimitedMatching,
+                edit.PrioritySupport,
+                features));
+
+            Snackbar.Add($"Plan {edit.Tier} enregistré.", Severity.Success);
+        }
+        catch (Exception ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _savingPlan = false; }
+    }
+
+    private int UserCountForTier(SubscriptionTier tier) => tier switch
+    {
+        SubscriptionTier.Free         => _platformStats?.FreeUsers         ?? 0,
+        SubscriptionTier.Starter      => _platformStats?.StarterUsers      ?? 0,
+        SubscriptionTier.Professional => _platformStats?.ProfessionalUsers ?? 0,
+        SubscriptionTier.Enterprise   => _platformStats?.EnterpriseUsers   ?? 0,
+        _                             => 0
+    };
+
+    private async Task LoadAuditLogsAsync()
+    {
+        _loadingAudit = true;
+        try
+        {
+            _auditLogs = (await Mediator.Send(new GetAuditLogsQuery(_auditActionFilter))).ToList();
+        }
+        finally { _loadingAudit = false; }
+    }
+
+    private async Task OnAuditFilterChangedAsync(string? value)
+    {
+        _auditActionFilter = value;
+        await LoadAuditLogsAsync();
     }
 
     // ── Actions ───────────────────────────────────────────────────────
@@ -682,28 +835,21 @@
     private IEnumerable<(string Tier, int Count, decimal Mrr)> TierRows()
     {
         if (_platformStats is null) yield break;
+        var price = (SubscriptionTier t) => _planEdits.TryGetValue(t, out var e) ? e.MonthlyPrice : 0m;
         yield return ("Free",         _platformStats.FreeUsers,         0m);
-        yield return ("Starter",      _platformStats.StarterUsers,      _platformStats.StarterUsers      * 49m);
-        yield return ("Professional", _platformStats.ProfessionalUsers, _platformStats.ProfessionalUsers * 149m);
-        yield return ("Enterprise",   _platformStats.EnterpriseUsers,   _platformStats.EnterpriseUsers   * 499m);
+        yield return ("Starter",      _platformStats.StarterUsers,      _platformStats.StarterUsers      * price(SubscriptionTier.Starter));
+        yield return ("Professional", _platformStats.ProfessionalUsers, _platformStats.ProfessionalUsers * price(SubscriptionTier.Professional));
+        yield return ("Enterprise",   _platformStats.EnterpriseUsers,   _platformStats.EnterpriseUsers   * price(SubscriptionTier.Enterprise));
     }
 
-    private IEnumerable<PlanDetail> PlanDetails()
+    private static Color AuditActionColor(string action) => action switch
     {
-        if (_platformStats is null) yield break;
-        yield return new("Free",         "Gratuit",    _platformStats.FreeUsers,         ["3 projets", "5 analyses/mois", "Matching standard"]);
-        yield return new("Starter",      "49 €/mois",  _platformStats.StarterUsers,      ["15 projets", "50 analyses/mois", "Matching avancé"]);
-        yield return new("Professional", "149 €/mois", _platformStats.ProfessionalUsers, ["Projets illimités", "Analyses illimitées", "Support prioritaire"]);
-        yield return new("Enterprise",   "499 €/mois", _platformStats.EnterpriseUsers,   ["Tout Professional", "SLA dédié", "Onboarding personnalisé"]);
-    }
-
-    private IEnumerable<(SubscriptionTier Tier, int MaxProjects, int MaxAnalyses, bool UnlimitedMatching, bool PrioritySupport)> PlanLimits()
-    {
-        yield return (SubscriptionTier.Free,         3,  5,  false, false);
-        yield return (SubscriptionTier.Starter,      15, 50, true,  false);
-        yield return (SubscriptionTier.Professional, -1, -1, true,  true);
-        yield return (SubscriptionTier.Enterprise,   -1, -1, true,  true);
-    }
+        "UserLocked"         => Color.Error,
+        "UserUnlocked"       => Color.Success,
+        "TierChanged"        => Color.Info,
+        "CapabilityDeleted"  => Color.Warning,
+        _                    => Color.Default
+    };
 
     private static Color TierColor(SubscriptionTier tier) => tier switch
     {
@@ -720,6 +866,25 @@
         string ProcessType, string? EquipmentName,
         decimal? MaxThicknessMm, decimal? ToleranceMm);
 
-    private sealed record PlanDetail(
-        string Name, string Price, int Count, string[] Features);
+    private sealed class PlanEditState
+    {
+        public SubscriptionTier Tier              { get; }
+        public decimal          MonthlyPrice      { get; set; }
+        public int              MaxProjects       { get; set; }
+        public int              MaxAnalysesPerMonth { get; set; }
+        public bool             UnlimitedMatching { get; set; }
+        public bool             PrioritySupport   { get; set; }
+        public string           FeaturesText      { get; set; }
+
+        public PlanEditState(SubscriptionPlanConfigDto dto)
+        {
+            Tier               = dto.Tier;
+            MonthlyPrice       = dto.MonthlyPrice;
+            MaxProjects        = dto.MaxProjects;
+            MaxAnalysesPerMonth = dto.MaxAnalysesPerMonth;
+            UnlimitedMatching  = dto.UnlimitedMatching;
+            PrioritySupport    = dto.PrioritySupport;
+            FeaturesText       = string.Join('\n', dto.Features);
+        }
+    }
 }

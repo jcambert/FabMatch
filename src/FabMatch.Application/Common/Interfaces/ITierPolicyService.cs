@@ -14,8 +14,11 @@ public interface ITierPolicyService
     /// <summary>Checks whether the client can trigger an AI analysis given their tier.</summary>
     Task<(bool Allowed, string? Reason)> CanRunAnalysisAsync(Guid clientId, CancellationToken ct = default);
 
-    /// <summary>Returns the feature limits for the given subscription tier.</summary>
+    /// <summary>Returns the feature limits for the given subscription tier (sync, uses static fallback).</summary>
     TierLimits GetLimits(SubscriptionTier tier);
+
+    /// <summary>Returns the feature limits loaded from the database (reflects admin edits).</summary>
+    Task<TierLimits> GetLimitsAsync(SubscriptionTier tier, CancellationToken ct = default);
 }
 
 /// <summary>Describes the feature limits for a subscription tier.</summary>

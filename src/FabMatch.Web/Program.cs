@@ -1,5 +1,6 @@
 using FabMatch.Application;
 using FabMatch.Domain.Entities;
+using FabMatch.Domain.Enums;
 using FabMatch.Infrastructure;
 using FabMatch.Infrastructure.Data;
 using FabMatch.Infrastructure.Services;
@@ -166,6 +167,9 @@ static async Task MigrateDatabaseAsync(WebApplication app)
         // Seed admin user from configuration
         await SeedAdminUserAsync(scope, logger);
 
+        // Seed default subscription plan configs (idempotent)
+        await SeedSubscriptionPlansAsync(db, logger);
+
         logger.LogInformation("Database migration complete.");
 
         // Ensure pg_trgm extension and GIN indexes for full-text search (idempotent)
@@ -213,6 +217,45 @@ static async Task SeedAdminUserAsync(IServiceScope scope, ILogger<Program> logge
 
     await userManager.AddToRoleAsync(admin, "Admin");
     logger.LogInformation("Admin user seeded: {Email}", email);
+}
+
+static async Task SeedSubscriptionPlansAsync(ApplicationDbContext db, ILogger<Program> logger)
+{
+    if (await db.SubscriptionPlanConfigs.AnyAsync())
+        return;
+
+    db.SubscriptionPlanConfigs.AddRange(
+        new SubscriptionPlanConfig
+        {
+            Tier = SubscriptionTier.Free, MonthlyPrice = 0m,
+            MaxProjects = 3, MaxAnalysesPerMonth = 5,
+            UnlimitedMatching = false, PrioritySupport = false,
+            Features = ["3 projets", "5 analyses IA/mois", "Matching de base"],
+        },
+        new SubscriptionPlanConfig
+        {
+            Tier = SubscriptionTier.Starter, MonthlyPrice = 49m,
+            MaxProjects = 15, MaxAnalysesPerMonth = 50,
+            UnlimitedMatching = true, PrioritySupport = false,
+            Features = ["15 projets", "50 analyses IA/mois", "Matching illimité", "Notifications email"],
+        },
+        new SubscriptionPlanConfig
+        {
+            Tier = SubscriptionTier.Professional, MonthlyPrice = 149m,
+            MaxProjects = -1, MaxAnalysesPerMonth = -1,
+            UnlimitedMatching = true, PrioritySupport = true,
+            Features = ["Projets illimités", "Analyses illimitées", "Matching illimité", "Export PDF", "Support prioritaire"],
+        },
+        new SubscriptionPlanConfig
+        {
+            Tier = SubscriptionTier.Enterprise, MonthlyPrice = 499m,
+            MaxProjects = -1, MaxAnalysesPerMonth = -1,
+            UnlimitedMatching = true, PrioritySupport = true,
+            Features = ["Tout Professional", "SLA dédié", "Intégration API", "Compte manager dédié", "White-label"],
+        });
+
+    await db.SaveChangesAsync();
+    logger.LogInformation("Subscription plan configs seeded.");
 }
 
 static async Task ApplyTrgmIndexesAsync(

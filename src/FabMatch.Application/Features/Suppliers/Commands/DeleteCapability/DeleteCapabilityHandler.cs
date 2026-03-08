@@ -1,3 +1,4 @@
+using FabMatch.Application.Common.Interfaces;
 using FabMatch.Domain.Interfaces;
 using Mediator;
 using Microsoft.Extensions.Logging;
@@ -8,11 +9,13 @@ namespace FabMatch.Application.Features.Suppliers.Commands.DeleteCapability;
 public sealed class DeleteCapabilityHandler : ICommandHandler<DeleteCapabilityCommand, bool>
 {
     private readonly IUnitOfWork _uow;
+    private readonly IAuditLogger _auditLogger;
     private readonly ILogger<DeleteCapabilityHandler> _logger;
 
-    public DeleteCapabilityHandler(IUnitOfWork uow, ILogger<DeleteCapabilityHandler> logger)
+    public DeleteCapabilityHandler(IUnitOfWork uow, IAuditLogger auditLogger, ILogger<DeleteCapabilityHandler> logger)
     {
         _uow = uow;
+        _auditLogger = auditLogger;
         _logger = logger;
     }
 
@@ -35,7 +38,16 @@ public sealed class DeleteCapabilityHandler : ICommandHandler<DeleteCapabilityCo
         }
 
         await _uow.SaveChangesAsync(ct);
+
         _logger.LogInformation("Capability {Id} deleted from supplier {SupplierId}", cmd.CapabilityId, cmd.SupplierId);
+
+        await _auditLogger.LogAsync(
+            "CapabilityDeleted",
+            "Capability",
+            cmd.CapabilityId,
+            capability.ProcessType,
+            ct);
+
         return true;
     }
 }

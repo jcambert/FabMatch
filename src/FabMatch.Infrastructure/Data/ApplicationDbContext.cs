@@ -30,6 +30,8 @@ public sealed class ApplicationDbContext
     public DbSet<Match> Matches => Set<Match>();
     public DbSet<Notification> Notifications => Set<Notification>();
     public DbSet<Payment> Payments => Set<Payment>();
+    public DbSet<AdminAuditLog> AdminAuditLogs => Set<AdminAuditLog>();
+    public DbSet<SubscriptionPlanConfig> SubscriptionPlanConfigs => Set<SubscriptionPlanConfig>();
 
     // ── Model configuration ────────────────────────────────────────
 
@@ -226,6 +228,34 @@ public sealed class ApplicationDbContext
             e.Property(n => n.Message).HasMaxLength(2000);
             e.HasIndex(n => new { n.UserId, n.IsRead });
             e.HasQueryFilter(n => !n.IsDeleted);
+        });
+
+        // ── SubscriptionPlanConfig ────────────────────────────────
+        builder.Entity<SubscriptionPlanConfig>(e =>
+        {
+            e.HasKey(p => p.Tier);
+            e.Property(p => p.MonthlyPrice).HasPrecision(10, 2);
+            e.Property(p => p.Features)
+             .HasConversion(
+                 v => JsonSerializer.Serialize(v, (JsonSerializerOptions?)null),
+                 v => JsonSerializer.Deserialize<List<string>>(v, (JsonSerializerOptions?)null) ?? new())
+             .Metadata.SetValueComparer(StringListComparer());
+        });
+
+        // ── AdminAuditLog ─────────────────────────────────────────
+        builder.Entity<AdminAuditLog>(e =>
+        {
+            e.HasKey(l => l.Id);
+            e.HasOne(l => l.Admin)
+             .WithMany()
+             .HasForeignKey(l => l.AdminUserId)
+             .OnDelete(DeleteBehavior.Restrict);
+
+            e.Property(l => l.Action).HasMaxLength(100).IsRequired();
+            e.Property(l => l.TargetType).HasMaxLength(100).IsRequired();
+            e.Property(l => l.TargetLabel).HasMaxLength(500);
+            e.HasIndex(l => l.CreatedAt);
+            e.HasIndex(l => l.Action);
         });
 
         // ── Payment ───────────────────────────────────────────────

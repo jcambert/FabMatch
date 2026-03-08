@@ -2,20 +2,25 @@ using FabMatch.Application.Common.Interfaces;
 using FabMatch.Domain.Entities;
 using FabMatch.Domain.Enums;
 using FabMatch.Domain.Interfaces;
+using FabMatch.Infrastructure.Data;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace FabMatch.Infrastructure.Services;
 
 /// <summary>
 /// Enforces subscription-tier limits using the client's project/analysis counts.
+/// Limits are read from the database so admin edits take effect immediately.
+/// A static fallback dictionary is kept for synchronous callers.
 /// </summary>
 public sealed class TierPolicyService : ITierPolicyService
 {
     private readonly IUnitOfWork _uow;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly ApplicationDbContext _db;
 
-    // ── Tier definitions ──────────────────────────────────────────────────────
-    private static readonly Dictionary<SubscriptionTier, TierLimits> Limits = new()
+    // ── Static fallback (used by sync GetLimits) ──────────────────────────────
+    private static readonly Dictionary<SubscriptionTier, TierLimits> StaticLimits = new()
     {
         [SubscriptionTier.Free] = new TierLimits(
             MaxProjects: 3, MaxAnalysesPerMonth: 5,
@@ -38,24 +43,38 @@ public sealed class TierPolicyService : ITierPolicyService
             Features: ["Tout Professional", "SLA dédié", "Intégration API", "Compte manager dédié", "White-label"]),
     };
 
-    public TierPolicyService(IUnitOfWork uow, UserManager<ApplicationUser> userManager)
+    // Per-request cache (service is scoped)
+    private Dictionary<SubscriptionTier, TierLimits>? _cachedLimits;
+
+    public TierPolicyService(
+        IUnitOfWork uow,
+        UserManager<ApplicationUser> userManager,
+        ApplicationDbContext db)
     {
         _uow = uow;
         _userManager = userManager;
+        _db = db;
     }
 
     /// <inheritdoc />
     public TierLimits GetLimits(SubscriptionTier tier)
-        => Limits.TryGetValue(tier, out var l) ? l : Limits[SubscriptionTier.Free];
+        => StaticLimits.TryGetValue(tier, out var l) ? l : StaticLimits[SubscriptionTier.Free];
+
+    /// <inheritdoc />
+    public async Task<TierLimits> GetLimitsAsync(SubscriptionTier tier, CancellationToken ct = default)
+    {
+        _cachedLimits ??= await LoadLimitsFromDbAsync(ct);
+        return _cachedLimits.TryGetValue(tier, out var l) ? l : GetLimits(tier);
+    }
 
     /// <inheritdoc />
     public async Task<(bool Allowed, string? Reason)> CanCreateProjectAsync(
         Guid clientId, CancellationToken ct = default)
     {
         var tier = await GetClientTierAsync(clientId, ct);
-        var limits = GetLimits(tier);
+        var limits = await GetLimitsAsync(tier, ct);
 
-        if (limits.MaxProjects < 0) return (true, null); // unlimited
+        if (limits.MaxProjects < 0) return (true, null);
 
         var count = await _uow.Projects.CountAsync(p => p.ClientId == clientId, ct);
         if (count >= limits.MaxProjects)
@@ -71,9 +90,9 @@ public sealed class TierPolicyService : ITierPolicyService
         Guid clientId, CancellationToken ct = default)
     {
         var tier = await GetClientTierAsync(clientId, ct);
-        var limits = GetLimits(tier);
+        var limits = await GetLimitsAsync(tier, ct);
 
-        if (limits.MaxAnalysesPerMonth < 0) return (true, null); // unlimited
+        if (limits.MaxAnalysesPerMonth < 0) return (true, null);
 
         var count = await _uow.Analyses.CountByClientThisMonthAsync(clientId, ct);
         if (count >= limits.MaxAnalysesPerMonth)
@@ -93,5 +112,20 @@ public sealed class TierPolicyService : ITierPolicyService
 
         var user = await _userManager.FindByIdAsync(client.UserId.ToString());
         return user?.Tier ?? SubscriptionTier.Free;
+    }
+
+    private async Task<Dictionary<SubscriptionTier, TierLimits>> LoadLimitsFromDbAsync(CancellationToken ct)
+    {
+        var configs = await _db.SubscriptionPlanConfigs.AsNoTracking().ToListAsync(ct);
+        if (configs.Count == 0) return StaticLimits;
+
+        return configs.ToDictionary(
+            c => c.Tier,
+            c => new TierLimits(
+                c.MaxProjects,
+                c.MaxAnalysesPerMonth,
+                c.UnlimitedMatching,
+                c.PrioritySupport,
+                c.Features.ToArray()));
     }
 }

@@ -82,6 +82,13 @@ public static class DependencyInjection
         // ── Tier Policy (subscription limit enforcement) ───────────────────────
         services.AddScoped<ITierPolicyService, TierPolicyService>();
 
+        // ── Audit Logger ───────────────────────────────────────────────────────
+        services.AddHttpContextAccessor();
+        services.AddScoped<IAuditLogger, AuditLogger>();
+
+        // ── Subscription plan repository ───────────────────────────────────────
+        services.AddScoped<ISubscriptionPlanRepository, SubscriptionPlanRepository>();
+
         return services;
     }
 }

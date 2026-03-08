@@ -3,6 +3,7 @@ using System;
 using FabMatch.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace FabMatch.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260308114213_AddAdminAuditLog")]
+    partial class AddAdminAuditLog
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -561,39 +564,6 @@ namespace FabMatch.Infrastructure.Data.Migrations
                     b.HasIndex("ClientId");
 
                     b.ToTable("Projects");
-                });
-
-            modelBuilder.Entity("FabMatch.Domain.Entities.SubscriptionPlanConfig", b =>
-                {
-                    b.Property<int>("Tier")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Features")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int>("MaxAnalysesPerMonth")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("MaxProjects")
-                        .HasColumnType("integer");
-
-                    b.Property<decimal>("MonthlyPrice")
-                        .HasPrecision(10, 2)
-                        .HasColumnType("numeric(10,2)");
-
-                    b.Property<bool>("PrioritySupport")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("UnlimitedMatching")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Tier");
-
-                    b.ToTable("SubscriptionPlanConfigs");
                 });
 
             modelBuilder.Entity("FabMatch.Domain.Entities.Supplier", b =>

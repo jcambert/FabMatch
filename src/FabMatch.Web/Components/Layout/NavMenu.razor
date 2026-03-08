@@ -4,23 +4,26 @@
 
             @* ── Navigation Admin ───────────────────────────────── *@
             <AuthorizeView Roles="Admin" Context="adminCtx">
-                <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.SpaceDashboard" Match="NavLinkMatch.All">
+                <MudNavLink Href="/admin?tab=0" Icon="@Icons.Material.Filled.SpaceDashboard" Match="NavLinkMatch.All">
                     Tableau de bord
                 </MudNavLink>
                 <MudDivider Class="my-2" />
                 <MudNavGroup Title="Utilisateurs" Icon="@Icons.Material.Filled.People" Expanded="true">
-                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Tous les comptes</MudNavLink>
-                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Clients</MudNavLink>
-                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Fournisseurs</MudNavLink>
+                    <MudNavLink Href="/admin?tab=1" Match="NavLinkMatch.Prefix">Tous les comptes</MudNavLink>
+                    <MudNavLink Href="/admin?tab=2" Match="NavLinkMatch.Prefix">Clients</MudNavLink>
+                    <MudNavLink Href="/admin?tab=3" Match="NavLinkMatch.Prefix">Fournisseurs</MudNavLink>
                 </MudNavGroup>
                 <MudNavGroup Title="Production" Icon="@Icons.Material.Filled.Build" Expanded="false">
-                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Capacités</MudNavLink>
+                    <MudNavLink Href="/admin?tab=4" Match="NavLinkMatch.Prefix">Capacités</MudNavLink>
                 </MudNavGroup>
                 <MudNavGroup Title="Monétisation" Icon="@Icons.Material.Filled.CreditCard" Expanded="false">
-                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Abonnements & MRR</MudNavLink>
+                    <MudNavLink Href="/admin?tab=5" Match="NavLinkMatch.Prefix">Abonnements & MRR</MudNavLink>
                 </MudNavGroup>
                 <MudNavGroup Title="IA & Matching" Icon="@Icons.Material.Filled.AutoAwesome" Expanded="false">
-                    <MudNavLink Href="/admin" Match="NavLinkMatch.All">Matching global</MudNavLink>
+                    <MudNavLink Href="/admin?tab=6" Match="NavLinkMatch.Prefix">Matching global</MudNavLink>
+                </MudNavGroup>
+                <MudNavGroup Title="Administration" Icon="@Icons.Material.Filled.AdminPanelSettings" Expanded="false">
+                    <MudNavLink Href="/admin?tab=7" Match="NavLinkMatch.Prefix">Journal d'audit</MudNavLink>
                 </MudNavGroup>
             </AuthorizeView>
 
